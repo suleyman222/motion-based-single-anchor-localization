@@ -1,12 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from robots.BaseRobot import Robot
-import matplotlib.axes._axes as axes
-import matplotlib.figure as figure
-
-
-def clamp(n, smallest, largest):
-    return max(smallest, min(n, largest))
+from utils import Util
 
 
 class ConstantAccelerationRobot(Robot):
@@ -37,18 +32,20 @@ class ConstantAccelerationRobot(Robot):
         self.all_positions.append(self.pos)
 
     def get_position_measurement(self):
-        r = np.sqrt(self.pos[0]**2 + self.pos[1]**2)
         v = self.vel
+
+        # Calculate and update distance
+        r = np.sqrt(self.pos[0]**2 + self.pos[1]**2)
+        dr = (r - self.distance) / self.dt
+        self.distance = r
+
         if self.noise:
             r += self.r_std * np.random.randn() * self.dt
             v = v + self.v_std * np.random.randn() * self.dt
 
-        dr = (r - self.distance) / self.dt
-        self.distance = r
         s = np.linalg.norm(v)
-
         alpha = np.arctan(v[1] / v[0])
-        theta = np.arccos(clamp(dr / s, -1, 1))
+        theta = np.arccos(Util.clamp(dr / s, -1, 1))
 
         pos1 = np.array([r * np.cos(alpha + theta), r * np.sin(alpha + theta)])
         pos2 = np.array([r * np.cos(alpha - theta), r * np.sin(alpha - theta)])
@@ -64,9 +61,9 @@ class ConstantAccelerationRobot(Robot):
 if __name__ == '__main__':
     pos0 = [1., 2.]
     v0 = [1., 3.]
-    acc = [.5, .6]
+    acc = [.5, .7]
 
-    rob = ConstantAccelerationRobot(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=False)
+    rob = ConstantAccelerationRobot(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=True)
     initial_est_pos = rob.get_position_measurement()
     xs_est, ys_est = [pos0[0]], [pos0[1]]
 
@@ -79,37 +76,9 @@ if __name__ == '__main__':
 
     # Plot results
     real_positions = np.array(rob.all_positions)
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2) # type:figure.Figure, ((axes.Axes, axes.Axes,), (axes.Axes, axes.Axes,))
-    plt.subplots_adjust(hspace=0.7)
-    plt.suptitle('Localization without noise, known initial position, constant acceleration')
-
-    # Plot X coordinates
-    ax1.plot(real_positions[:, 0], label='real x')
-    ax1.plot(xs_est, label='estimated x')
-    ax1.set_title('X position')
-    ax1.set(ylabel='x coordinate')
-    # print(np.sum(np.array(rob.xs) - np.array(xs_est)))
-
-    ax2.plot(real_positions[:, 0], label='real x')
-    ax2.plot(xs_est, label='estimated x')
-    ax2.set_title('X position (zoomed in)')
-    ax2.set_xlim(20, 21)
-    ax2.set_ylim(4, 4.3)
-    ax2.legend()
-
-    # Plot Y coordinates
-    ax3.plot(real_positions[:, 1], label='real y', color='red')
-    ax3.plot(ys_est, label='estimated y', color='green')
-    ax3.set_title('Y position')
-    ax3.set(xlabel='time', ylabel='y coordinate')
-    # print(np.sum(np.array(rob.ys) - np.array(ys_est)))
-
-    ax4.plot(real_positions[:, 1], label='real y', color='red')
-    ax4.plot(ys_est, label='estimated y', color='green')
-    ax4.set_title('Y position (zoomed in)')
-    ax4.set(xlabel='time')
-    ax4.legend()
-    ax4.set_xlim(16, 16.5)
-    ax4.set_ylim(7.5, 8)
-
+    plt.plot(xs_est, ys_est, label='Measured position')
+    plt.plot(real_positions[:, 0], real_positions[:, 1], label='Real position')
+    plt.xlabel('X coordinate')
+    plt.ylabel('Y coordinate')
+    plt.legend()
     plt.show()
