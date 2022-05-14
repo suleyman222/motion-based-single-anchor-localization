@@ -7,8 +7,8 @@ from filterpy.common import Saver
 from matplotlib import pyplot as plt
 from numpy.random import randn
 
-from robots.BaseRobot import Robot
-from robots.ConstantAccelerationRobot import ConstantAccelerationRobot
+from robots.BaseRobot2D import BaseRobot2D
+from robots.ConstantAccelerationRobot2D import ConstantAccelerationRobot2D
 
 # Ideas to check out:
 # - a changing value of dt
@@ -16,7 +16,7 @@ from robots.ConstantAccelerationRobot import ConstantAccelerationRobot
 
 
 class PositionTracking:
-    def __init__(self, P, Q, R, dt=1., robot: Robot = ConstantAccelerationRobot(), init_pos=None, init_v=None, init_a=None, count=50):
+    def __init__(self, P, Q, R, dt=1., robot: BaseRobot2D = ConstantAccelerationRobot2D(), init_pos=None, init_v=None, init_a=None, count=50):
         if init_pos is None:
             init_pos = [robot.x, robot.y]
         if init_v is None:
@@ -92,7 +92,7 @@ class PositionTracking:
 
 
     def simulate_acc_system(self, R, Q, count):
-        robot = ConstantAccelerationRobot(acc_noise=Q)
+        robot = ConstantAccelerationRobot2D(acc_noise=Q)
         zs = []
         xs = []
         for i in range(count):
@@ -146,7 +146,7 @@ class PositionTracking:
 
 
 def simulate_acc_system(R, Q, count):
-    obj = ConstantAccelerationRobot(acc_noise=0)
+    obj = ConstantAccelerationRobot2D(acc_noise=0)
     zs = []
     xs = []
     for i in range(count):
@@ -167,7 +167,7 @@ if __name__ == '__main__':
     # plt.plot(zs)
     # plt.show()
 
-    rob = ConstantAccelerationRobot(3, 1)
+    rob = ConstantAccelerationRobot2D(3, 1)
 
     pt = PositionTracking(2.5, 2, 2, 2, robot=rob)
     # pt.run()

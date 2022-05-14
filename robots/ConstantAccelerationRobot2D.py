@@ -1,19 +1,17 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from robots.BaseRobot import Robot
+from robots.BaseRobot2D import BaseRobot2D
 from utils import Util
 
 
-class ConstantAccelerationRobot(Robot):
+class ConstantAccelerationRobot2D(BaseRobot2D):
     def __init__(self, init_pos=None, init_vel=None, accel=None, dt=1., noise=False, r_std=0., v_std=0.):
-        super().__init__()
+        super().__init__(init_pos=init_pos)
 
         if accel is None:
             accel = [.1, .1]
         if init_vel is None:
             init_vel = [1., 1.]
-        if init_pos is None:
-            init_pos = [0., 0.]
 
         self.pos = np.array(init_pos)
         self.vel = np.array(init_vel)
@@ -51,34 +49,27 @@ class ConstantAccelerationRobot(Robot):
         pos2 = np.array([r * np.cos(alpha - theta), r * np.sin(alpha - theta)])
 
         if np.linalg.norm(pos1-self.pos) < np.linalg.norm(pos2-self.pos):
-            self.last_measured_pos = pos1
+            # self.last_measured_pos = pos1
             return pos1
         else:
-            self.last_measured_pos = pos2
+            # self.last_measured_pos = pos2
             return pos2
 
 
 if __name__ == '__main__':
-    pos0 = [1., 2.]
+    pos0 = [100., 2.]
     v0 = [1., 3.]
     acc = [.5, .7]
 
-    rob = ConstantAccelerationRobot(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=True)
-    initial_est_pos = rob.get_position_measurement()
-    xs_est, ys_est = [pos0[0]], [pos0[1]]
+    rob = ConstantAccelerationRobot2D(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=True)
 
     count = 100
+    measured_positions = [pos0]
     for _ in range(count):
         rob.update()
         est_pos = rob.get_position_measurement()
-        xs_est.append(est_pos[0])
-        ys_est.append(est_pos[1])
+        measured_positions.append(est_pos)
 
     # Plot results
-    real_positions = np.array(rob.all_positions)
-    plt.plot(xs_est, ys_est, label='Measured position')
-    plt.plot(real_positions[:, 0], real_positions[:, 1], label='Real position')
-    plt.xlabel('X coordinate')
-    plt.ylabel('Y coordinate')
-    plt.legend()
-    plt.show()
+    Util.plot_path(np.array(rob.all_positions), np.array(measured_positions))
+
