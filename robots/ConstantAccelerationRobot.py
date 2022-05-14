@@ -5,6 +5,10 @@ import matplotlib.axes._axes as axes
 import matplotlib.figure as figure
 
 
+def clamp(n, smallest, largest):
+    return max(smallest, min(n, largest))
+
+
 class ConstantAccelerationRobot(Robot):
     def __init__(self, init_pos=None, init_vel=None, accel=None, dt=1., noise=False, r_std=0., v_std=0.):
         super().__init__()
@@ -40,18 +44,20 @@ class ConstantAccelerationRobot(Robot):
             v = v + self.v_std * np.random.randn() * self.dt
 
         dr = (r - self.distance) / self.dt
-        s = np.linalg.norm(v)
         self.distance = r
+        s = np.linalg.norm(v)
 
         alpha = np.arctan(v[1] / v[0])
-        theta = np.arccos(dr / s)
+        theta = np.arccos(clamp(dr / s, -1, 1))
 
         pos1 = np.array([r * np.cos(alpha + theta), r * np.sin(alpha + theta)])
         pos2 = np.array([r * np.cos(alpha - theta), r * np.sin(alpha - theta)])
 
         if np.linalg.norm(pos1-self.pos) < np.linalg.norm(pos2-self.pos):
+            self.last_measured_pos = pos1
             return pos1
         else:
+            self.last_measured_pos = pos2
             return pos2
 
 
@@ -60,7 +66,7 @@ if __name__ == '__main__':
     v0 = [1., 3.]
     acc = [.5, .6]
 
-    rob = ConstantAccelerationRobot(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=True)
+    rob = ConstantAccelerationRobot(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=False)
     initial_est_pos = rob.get_position_measurement()
     xs_est, ys_est = [pos0[0]], [pos0[1]]
 
