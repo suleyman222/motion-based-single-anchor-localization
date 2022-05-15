@@ -1,5 +1,5 @@
+import filterpy.common
 import numpy as np
-from matplotlib import pyplot as plt
 from robots.BaseRobot2D import BaseRobot2D
 from utils import Util
 
@@ -57,19 +57,34 @@ class ConstantAccelerationRobot2D(BaseRobot2D):
 
 
 if __name__ == '__main__':
-    pos0 = [100., 2.]
+    pos0 = [3., 2.]
     v0 = [1., 3.]
     acc = [.5, .7]
+    dt = 0.1
+    r_std = .5
+    v_std = .5
+    rob = ConstantAccelerationRobot2D(init_pos=pos0, init_vel=v0, accel=acc, dt=dt, r_std=r_std, v_std=v_std, noise=True)
 
-    rob = ConstantAccelerationRobot2D(init_pos=pos0, init_vel=v0, accel=acc, dt=0.1, r_std=.1, v_std=.1, noise=True)
+    kf = filterpy.common.kinematic_kf(2, 2, dt, order_by_dim=False)
+    kf.x = pos0 + v0 + acc
+    kf.R *= (r_std**2 + v_std**2)
+    # Low, bcs we are confident in initial position
+    kf.P *= 0.001
+    kf.Q *= 0
+    print(kf)
 
     count = 100
+    estimated_positions = [pos0]
     measured_positions = [pos0]
     for _ in range(count):
         rob.update()
         est_pos = rob.get_position_measurement()
+        kf.predict()
+        kf.update(est_pos)
+        print(kf.x)
+        estimated_positions.append([kf.x[0], kf.x[1]])
         measured_positions.append(est_pos)
 
     # Plot results
-    Util.plot_path(np.array(rob.all_positions), np.array(measured_positions))
+    Util.plot_path(np.array(rob.all_positions), np.array(measured_positions), np.array(estimated_positions))
 
