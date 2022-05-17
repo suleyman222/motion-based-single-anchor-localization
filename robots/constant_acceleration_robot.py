@@ -1,5 +1,5 @@
 import numpy as np
-from robots.BaseRobot2D import BaseRobot2D
+from robots.base_robot import BaseRobot2D
 
 
 class ConstantAccelerationRobot2D(BaseRobot2D):

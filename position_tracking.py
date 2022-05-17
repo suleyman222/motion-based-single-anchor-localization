@@ -1,8 +1,8 @@
 import numpy as np
 
 from utils import Util
-from robots.BaseRobot2D import BaseRobot2D
-from robots.ConstantAccelerationRobot2D import ConstantAccelerationRobot2D
+from robots.base_robot import BaseRobot2D
+from robots.constant_acceleration_robot import ConstantAccelerationRobot2D
 
 # Ideas to check out:
 # - a changing value of dt

@@ -1,7 +1,7 @@
 import filterpy.common
 
-from distance_velocity_localization import PositionTracking
-from robots.ConstantAccelerationRobot2D import ConstantAccelerationRobot2D
+from position_tracking import PositionTracking
+from robots.constant_acceleration_robot import ConstantAccelerationRobot2D
 
 if __name__ == '__main__':
     pos0 = [3., 2.]
