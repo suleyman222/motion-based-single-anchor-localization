@@ -15,4 +15,3 @@ class ConstantAccelerationRobot2D(BaseRobot2D):
         self.vel = self.vel + self.accel * self.dt
         self.pos = self.pos + self.vel * self.dt
         self.all_positions.append(self.pos)
-
