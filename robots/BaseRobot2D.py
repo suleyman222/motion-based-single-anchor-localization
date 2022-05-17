@@ -1,13 +1,33 @@
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 
 class BaseRobot2D(ABC):
-    def __init__(self, init_pos=None, dt=1.):
+    def __init__(self, init_pos=None, init_vel=None, noise=False, r_std=0., v_std=0., dt=1.):
         if init_pos is None:
             init_pos = [0., 0.]
+        if init_vel is None:
+            init_vel = [1., 1.]
 
-        self.init_pos = init_pos
+        self.pos = np.array(init_pos)
+        self.vel = np.array(init_vel)
+        self.all_positions = [self.pos]
+
+        self.noise = noise
+        self.r_std = r_std
+        self.v_std = v_std
         self.dt = dt
+
+    def get_measurement(self):
+        v = self.vel
+        r = np.linalg.norm(self.pos)
+
+        if self.noise:
+            r += self.r_std * np.random.randn()
+            v = v + self.v_std * np.random.randn()
+
+        return r, v
 
     @abstractmethod
     def update(self):
