@@ -4,10 +4,6 @@ from utils import Util
 from robots.base_robot import BaseRobot2D
 from robots.constant_acceleration_robot import ConstantAccelerationRobot2D
 
-# Ideas to check out:
-# - a changing value of dt
-# - different data rates of sensors
-
 
 class PositionTracking:
     def __init__(self, kf, robot: BaseRobot2D = ConstantAccelerationRobot2D(), count=50):
@@ -44,7 +40,7 @@ class PositionTracking:
     def calculate_position(self, prev_pos, r, v):
         dr = (r - self.prev_r) / self.dt
         s = np.linalg.norm(v)
-        alpha = np.arctan(v[1] / v[0])
+        alpha = np.arctan2(v[1], v[0])
         theta = np.arccos(Util.clamp(dr / s, -1, 1))
 
         pos1 = np.array([r * np.cos(alpha + theta), r * np.sin(alpha + theta)])

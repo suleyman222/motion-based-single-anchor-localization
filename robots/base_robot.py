@@ -26,7 +26,7 @@ class BaseRobot2D(ABC):
         if self.noise:
             r += self.r_std * np.random.randn()
             v = v + self.v_std * np.random.randn()
-
+            # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
         return r, v
 
     @abstractmethod
