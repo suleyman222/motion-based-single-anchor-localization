@@ -47,6 +47,7 @@ class ControlledRobot(BaseRobot2D):
 
 def main_known_pos():
     p0 = [3., 1.]
+    # try changing direction slightly
     u = [[.001, 0], [.001, 0], [0, .003], [0, .003], [-.002, 0], [-.002, 0], [-.001, -.001], [-.001, -.001]]
     cr = ControlledRobot(u, p0, dt=1)
 
@@ -68,7 +69,7 @@ def main_known_pos():
 
 def main():
     p0 = [3., 1.]
-    u = [[.5, 0], [.1, 0], [.1, 0], [.1, 0], [0, .3], [-.2, 0], [-.1, -.1]]
+    u = [[.5, 0], [.5, 0], [.5, 0], [.5, 0], [.5, 0], [.1, 0], [.1, 0], [.1, 0], [0, .3], [-.2, 0], [-.1, -.1]]
     cr = ControlledRobot(u, p0, dt=1)
 
     pos = [cr.pos]

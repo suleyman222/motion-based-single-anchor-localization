@@ -2,7 +2,7 @@ import numpy as np
 
 from utils import Util
 from robots.base_robot import BaseRobot2D
-from robots.constant_acceleration_robot import ConstantAccelerationRobot2D
+from robots.accelerating_robots import ConstantAccelerationRobot2D
 
 
 class PositionTracking:
@@ -15,7 +15,7 @@ class PositionTracking:
         self.prev_r = np.linalg.norm(robot.pos)
         self.kf = kf
 
-    def run(self):
+    def run(self, title="Position tracking"):
         init_pos = self.robot.pos
         estimated_positions = [init_pos]
         measured_positions = [init_pos]
@@ -35,7 +35,8 @@ class PositionTracking:
             # self.prev_r = np.linalg.norm(estimated_pos)
             self.prev_r = measured_r
 
-        Util.plot_path(np.array(self.robot.all_positions), np.array(measured_positions), np.array(estimated_positions))
+        Util.plot_path(np.array(self.robot.all_positions), np.array(measured_positions), np.array(estimated_positions),
+                       title)
 
     def calculate_position(self, prev_pos, r, v):
         dr = (r - self.prev_r) / self.dt

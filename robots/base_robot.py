@@ -24,8 +24,8 @@ class BaseRobot2D(ABC):
         r = np.linalg.norm(self.pos)
 
         if self.noise:
-            r += self.r_std * np.random.randn()
-            v = v + self.v_std * np.random.randn()
+            r += np.random.normal(0, self.r_std)
+            v = v + np.random.normal(0, self.v_std)
             # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
         return r, v
 
