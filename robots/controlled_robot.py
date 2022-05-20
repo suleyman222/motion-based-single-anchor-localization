@@ -69,7 +69,7 @@ def main_known_pos():
 
 def main():
     p0 = [3., 1.]
-    u = [[.5, 0], [.5, 0], [.5, 0], [.5, 0], [.5, 0], [.1, 0], [.1, 0], [.1, 0], [0, .3], [-.2, 0], [-.1, -.1]]
+    u = [[.001, 0], [.001, 0], [0, .003], [0, .003], [-.002, 0], [-.002, 0], [-.001, -.001], [-.001, -.001]]
     cr = ControlledRobot(u, p0, dt=1)
 
     pos = [cr.pos]
@@ -93,8 +93,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main_known_pos()
-
+    # main_known_pos()
+    main()
     # x+exp(−0.2x)sin(10x)
     # t = np.linspace(0, 10, )
     # plt.plot(np.sin(3.1*t)+t, t)

@@ -9,13 +9,11 @@ class PositionTracking:
     def __init__(self, kf, robot: BaseRobot2D = ConstantAccelerationRobot2D(), count=50):
         self.robot = robot
         self.count = count
-
         self.dt = robot.dt
-
         self.prev_r = np.linalg.norm(robot.pos)
         self.kf = kf
 
-    def run(self, title="Position tracking"):
+    def run(self):
         init_pos = self.robot.pos
         estimated_positions = [init_pos]
         measured_positions = [init_pos]
@@ -34,9 +32,7 @@ class PositionTracking:
             # TODO: How do we update prev_r?
             # self.prev_r = np.linalg.norm(estimated_pos)
             self.prev_r = measured_r
-
-        Util.plot_path(np.array(self.robot.all_positions), np.array(measured_positions), np.array(estimated_positions),
-                       title)
+        return np.array(measured_positions), np.array(estimated_positions)
 
     def calculate_position(self, prev_pos, r, v):
         dr = (r - self.prev_r) / self.dt

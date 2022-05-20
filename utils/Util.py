@@ -12,14 +12,10 @@ def plot_path(real_positions, measured_positions, estimated_positions, title):
     plt.plot(estimated_positions[:, 0], estimated_positions[:, 1], label='Estimated position')
     plt.title(title)
     plt.xlabel('X coordinate')
-    # plt.xlim(120, 125)
-    # plt.ylim(20, 230)
+    # plt.xlim(0)
+    # plt.ylim(0)
     plt.ylabel('Y coordinate')
     plt.legend()
-
-    rmsd = rmse(measured_positions, real_positions)
-    print(f"RMSE of measurements: {rmsd}")
-
     plt.show()
 
 

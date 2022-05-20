@@ -25,7 +25,7 @@ class RandomAccelerationRobot2D(BaseRobot2D):
         self.accel = None
 
     def update(self):
-        self.accel = [np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise]
-        self.vel = self.vel + self.accel * self.dt
-        self.pos = self.pos + self.vel * self.dt
+        self.accel = np.dot([np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise], self.dt)
+        self.vel = self.vel + np.dot(self.accel, self.dt)
+        self.pos = self.pos + np.dot(self.vel, self.dt)
         self.all_positions.append(self.pos)
