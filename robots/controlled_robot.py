@@ -46,13 +46,15 @@ class ControlledRobot(BaseRobot2D):
 
 
 def main_known_pos():
-    p0 = [3., 1.]
-    # try changing direction slightly
-    u = [[.001, 0], [.001, 0], [0, .003], [0, .003], [-.002, 0], [-.002, 0], [-.001, -.001], [-.001, -.001]]
-    cr = ControlledRobot(u, p0, dt=1)
+    p0 = [0., 0.]
+    # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
+    #      [1, 2], [1, 2]]
+    u = [[1, 0]] * 100 + [[1, 2]] * 100
+    cr = ControlledRobot(u, p0, dt=.1)
 
     pos = [cr.pos]
     measured_pos = [cr.pos]
+
     for _ in range(len(u)):
         cr.update()
         measured_r, measured_v = cr.get_measurement()
@@ -62,40 +64,45 @@ def main_known_pos():
 
     pos = np.array(pos)
     measured_pos = np.array(measured_pos)
+
     plt.plot(pos[:, 0], pos[:, 1])
     plt.plot(measured_pos[:, 0], measured_pos[:, 1])
     plt.show()
 
+    print(Util.rmse(measured_pos, pos))
+
 
 def main():
-    p0 = [3., 1.]
-    u = [[.001, 0], [.001, 0], [0, .003], [0, .003], [-.002, 0], [-.002, 0], [-.001, -.001], [-.001, -.001]]
-    cr = ControlledRobot(u, p0, dt=1)
+    p0 = [0., 0.]
+    u = [[1, 0]] * 100 + [[1, 2]] * 100
+    cr = ControlledRobot(u, p0, dt=.1)
 
     pos = [cr.pos]
-    estimated_pos1 = []
-    estimated_pos2 = []
+
+    alt1 = [cr.pos]
+    alt2 = [cr.pos]
+
     for _ in range(len(u)):
-        measured_r, measured_v = cr.get_measurement()
-        calc_pos1, calc_pos2 = cr.calc_pos(measured_r, measured_v)
-        estimated_pos1.append(calc_pos1)
-        estimated_pos2.append(calc_pos2)
         cr.update()
+        measured_r, measured_v = cr.get_measurement()
+        pos1, pos2 = cr.calc_pos(measured_r, measured_v)
+        alt1.append(pos1)
+        alt2.append(pos2)
         pos.append(cr.pos)
 
     pos = np.array(pos)
-    estimated_pos1 = np.array(estimated_pos1)
-    estimated_pos2 = np.array(estimated_pos2)
+    alt1 = np.array(alt1)
+    alt2 = np.array(alt2)
+
     plt.plot(pos[:, 0], pos[:, 1])
-    plt.plot(estimated_pos1[:, 0], estimated_pos1[:, 1])
-    plt.plot(estimated_pos2[:, 0], estimated_pos2[:, 1])
+    plt.plot(alt1[:, 0], alt1[:, 1])
+    plt.plot(alt2[:, 0], alt2[:, 1])
+
     plt.show()
+
+    # print(Util.rmse(measured_pos, pos))
 
 
 if __name__ == '__main__':
     # main_known_pos()
-    main()
-    # x+exp(−0.2x)sin(10x)
-    # t = np.linspace(0, 10, )
-    # plt.plot(np.sin(3.1*t)+t, t)
-    # plt.show()
+    main_known_pos()

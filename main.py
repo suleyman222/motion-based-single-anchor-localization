@@ -24,10 +24,10 @@ from utils import Util
 
 
 def random_acc_run():
-    is_noisy = True
+    is_noisy = False
     pos0 = [3., 2.]
     v0 = [1, 1]
-    dt = 1
+    dt = .1
     r_std = .01
     v_std = .01
     acc_std = 1
@@ -49,7 +49,7 @@ def random_acc_run():
 
     rand_rob = RandomAccelerationRobot2D(
         init_pos=pos0, init_vel=v0, dt=dt, r_std=r_std, v_std=v_std, noise=is_noisy, ax_noise=acc_std, ay_noise=acc_std)
-    rand_pt = PositionTracking(rand_kf, rand_rob, 100)
+    rand_pt = PositionTracking(rand_kf, rand_rob, 1000)
 
     measured_positions, estimated_positions = rand_pt.run()
     real_positions = np.array(rand_rob.all_positions)

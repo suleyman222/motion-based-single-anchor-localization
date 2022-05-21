@@ -20,6 +20,7 @@ class BaseRobot2D(ABC):
         self.dt = dt
 
     def get_measurement(self):
+        # TODO: self.vel or self.vel * self.dt
         v = self.vel
         r = np.linalg.norm(self.pos)
 
