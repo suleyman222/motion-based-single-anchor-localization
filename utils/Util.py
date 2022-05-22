@@ -21,3 +21,18 @@ def plot_path(real_positions, measured_positions, estimated_positions, title):
 
 def rmse(measured_positions, real_positions):
     return np.sqrt(np.sum((real_positions - measured_positions)**2, axis=0) / len(real_positions))
+
+
+def cos_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+def closest_to(target, options):
+    distance = float("inf")
+    closest = None
+    for option in options:
+        d = np.linalg.norm(option - target)
+        if d < distance:
+            closest = option
+            distance = d
+    return closest

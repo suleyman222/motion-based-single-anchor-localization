@@ -5,21 +5,6 @@ from robots.base_robot import BaseRobot2D
 from utils import Util
 
 
-def cos_similarity(a, b):
-    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-
-def closest_to(target, options):
-    distance = float("inf")
-    closest = None
-    for option in options:
-        d = np.linalg.norm(option - target)
-        if d < distance:
-            closest = option
-            distance = d
-    return closest
-
-
 class ControlledRobot(BaseRobot2D):
     def __init__(self, control_input, init_pos=None, init_vel=None, dt=1., noise=False, r_std=0., v_std=0.):
         super().__init__(init_pos, init_vel, noise, r_std, v_std, dt)
@@ -59,7 +44,7 @@ def main_known_pos():
     for _ in range(len(u)):
         cr.update()
         measured_r, measured_v = cr.get_measurement()
-        calc_pos = closest_to(measured_pos[-1], cr.calc_pos(measured_r, measured_v))
+        calc_pos = Util.closest_to(measured_pos[-1], cr.calc_pos(measured_r, measured_v))
         measured_pos.append(calc_pos)
         pos.append(cr.pos)
 
@@ -87,14 +72,14 @@ def main():
         cr.update()
         measured_r, measured_v = cr.get_measurement()
         if cr.localized:
-            measured_pos = closest_to(measured_positions[-1], cr.calc_pos(measured_r, measured_v))
+            measured_pos = Util.closest_to(measured_positions[-1], cr.calc_pos(measured_r, measured_v))
             measured_positions.append(measured_pos)
         elif prev_v:
             [pos1, pos2] = cr.calc_pos(measured_r, measured_v)
             alt1.append(pos1)
             alt2.append(pos2)
 
-            similarity = cos_similarity(prev_v, measured_v)
+            similarity = Util.cos_similarity(prev_v, measured_v)
             if similarity < .5:
                 cr.localized = True
                 prev1 = alt1[-1]
@@ -104,7 +89,7 @@ def main():
                 max_pos = None
                 for pos in [pos1, pos2]:
                     for prev in [prev1, prev2]:
-                        sim = cos_similarity(pos, prev)
+                        sim = Util.cos_similarity(pos, prev)
                         if sim > max_sim:
                             max_sim = sim
                             max_pos = pos
