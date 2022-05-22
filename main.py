@@ -22,15 +22,19 @@ from utils import Util
 # In general, noise seems to get worse the longer the path goes on. Why? Even though measurement noise is the same, the
 # increased velocity probably causes the high noise in the later stages of the path.
 
+# Main problem:
+# The changes in position need to be small every timestep, but this means that noise in the distance and velocity
+# measurements hit extremely hard.
+
 
 def random_acc_run():
-    is_noisy = False
+    is_noisy = True
     pos0 = [3., 2.]
     v0 = [1, 1]
     dt = .1
-    r_std = .01
-    v_std = .01
-    acc_std = 1
+    r_std = .0005
+    v_std = .0005
+    acc_std = 5
 
     rand_kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
     # Noise combined (?!?!) with smaller acc_std (relative to v) results in awful measurements
@@ -40,7 +44,7 @@ def random_acc_run():
     rand_kf.P *= 0
 
     rand_kf.x = pos0 + v0
-    rand_kf.R *= (r_std ** 2 + v_std ** 2)  # TODO: this is wrong, needs to change
+    rand_kf.R *= (r_std ** 2 + v_std ** 2) * 1000000000  # TODO: this is wrong, needs to change
     # rand_kf.B = np.array([[0.5*dt**2, 0], [0, 0.5*dt**2], [dt, 0], [0, dt]])
     # print(rand_kf)
 

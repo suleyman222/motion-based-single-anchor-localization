@@ -32,5 +32,5 @@ class BaseRobot2D(ABC):
 
     @abstractmethod
     def update(self):
-        pass
+        self.all_positions.append(self.pos)
     
