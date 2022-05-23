@@ -31,7 +31,7 @@ def closest_to(target, options):
     distance = float("inf")
     closest = None
     for option in options:
-        d = np.linalg.norm(option - target)
+        d = np.linalg.norm([a - b for a, b in zip(option, target)])
         if d < distance:
             closest = option
             distance = d
