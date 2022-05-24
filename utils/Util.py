@@ -20,7 +20,7 @@ def plot_path(real_positions, measured_positions, estimated_positions, title):
 
 
 def rmse(measured_positions, real_positions):
-    return np.sqrt(np.sum((real_positions - measured_positions)**2, axis=0) / len(real_positions))
+    return (np.sum((real_positions - measured_positions)**2, axis=0) / len(real_positions))**.5
 
 
 def cos_similarity(a, b):

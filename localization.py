@@ -112,40 +112,52 @@ class MotionBasedLocalization(BaseLocalization):
                     self.idx_localized = i + 1
             prev_v = measured_v
 
+        # Calculate the positions of the robot before it was accurately localized
+        if loc.idx_localized:
+            for i in reversed(range(loc.idx_localized)):
+                if i == 0:
+                    continue
+                loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i + 1], loc.measured_positions[i])
+
+    def plot_results(self, show_all_measurements=False):
+        all_pos = np.array(self.robot.all_positions)
+        alt1 = np.array([possible_position[0] for possible_position in self.measured_positions])
+        alt2 = np.array([possible_position[1] for possible_position in self.measured_positions])
+        chosen_positions = np.array(self.chosen_positions)
+
+        if not self.localized:
+            plt.title("Could not localize")
+        else:
+            rmse = Util.rmse(chosen_positions[1:], all_pos[1:])
+            trunc_rmse = ['%.4f' % val for val in rmse]
+            plt.title(f"RMSE={trunc_rmse}")
+            plt.plot(chosen_positions[self.idx_localized][0], chosen_positions[self.idx_localized][1], 'r+')
+
+        plt.plot(all_pos[:, 0], all_pos[:, 1], label="Real path")
+        plt.plot(chosen_positions[:, 0], chosen_positions[:, 1], label="Found path")
+
+        if show_all_measurements:
+            plt.plot(alt1[:, 0], alt1[:, 1], 'g--', label="Measurement 1")
+            plt.plot(alt2[:, 0], alt2[:, 1], 'y--', label="Measurement 2")
+
+        plt.legend()
+        plt.show()
+
 
 if __name__ == '__main__':
     p0 = [3., 2.]
     u = [[1, 0]] * 100 + [[1, 2]] * 100
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
-    cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
+    # cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
-    # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
+    cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
 
     loc = MotionBasedLocalization(cr, len(u))
     loc.run()
-
-    if not loc.localized:
-        plt.title("Couldn't localize")
-
-    for i in reversed(range(loc.idx_localized)):
-        if i == 0:
-            continue
-        loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i+1], loc.measured_positions[i])
-
-    all_pos = np.array(cr.all_positions)
-    alt1 = np.array([possible_position[0] for possible_position in loc.measured_positions])
-    alt2 = np.array([possible_position[1] for possible_position in loc.measured_positions])
-    chosen_positions = np.array(loc.chosen_positions)
-
-    plt.plot(all_pos[:, 0], all_pos[:, 1])
-    plt.plot(alt1[:, 0], alt1[:, 1])
-    plt.plot(alt2[:, 0], alt2[:, 1])
-    plt.plot(chosen_positions[:, 0], chosen_positions[:, 1])
+    loc.plot_results(show_all_measurements=True)
 
     # pt = PositionTracking(None, cr, len(u))
     # m, e = pt.run()
     # measuredp = np.array(m)
     # plt.plot(measuredp[:, 0], measuredp[:, 1])
-
-    plt.show()
