@@ -8,7 +8,7 @@ class BaseRobot2D(ABC):
         if init_pos is None:
             init_pos = [0., 0.]
         if init_vel is None:
-            init_vel = [1., 1.]
+            init_vel = [0., 0.]
 
         self.pos = np.array(init_pos)
         self.vel = np.array(init_vel)

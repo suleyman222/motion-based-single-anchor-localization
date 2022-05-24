@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from matplotlib import pyplot as plt
 
-from robots.accelerating_robots import ConstantAccelerationRobot2D
+from robots.accelerating_robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D
 from robots.base_robot import BaseRobot2D
 from robots.controlled_robot import ControlledRobot2D
 from utils import Util
@@ -88,18 +88,23 @@ class MotionBasedLocalization(BaseLocalization):
                         max_position = pos
             return max_position
 
-        prev_v = [0.1, 0.1]
+        prev_v = [None, None]
         for i in range(self.count):
             self.robot.update()
             measured_r, measured_v = self.robot.get_measurement()
             [pos1, pos2] = self.calculate_possible_positions(measured_r, measured_v)
             self.measured_positions[i] = (pos1, pos2)
+
+            if i == 0:
+                prev_v = measured_v
+                continue
+
             if self.localized:
                 measured_pos = Util.closest_to(self.chosen_positions[i-1], [pos1, pos2])
                 self.chosen_positions[i] = measured_pos
             else:
                 similarity = Util.cos_similarity(prev_v, measured_v)
-                if similarity < .5:
+                if similarity < .99:
                     self.localized = True
                     prev1 = self.measured_positions[i-1][0]
                     prev2 = self.measured_positions[i-1][1]
@@ -116,13 +121,18 @@ if __name__ == '__main__':
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
     cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
-
+    # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
+    # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
     loc = MotionBasedLocalization(cr, len(u), known_initial_position=False)
     # loc.localized = True
     loc.run()
 
-    for i in reversed(range(loc.idx_localized)):
-        loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i+1], loc.measured_positions[i])
+    if not loc.localized:
+        plt.title("Couldn't localize")
+
+
+    # for i in reversed(range(loc.idx_localized)):
+    #     loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i+1], loc.measured_positions[i])
 
     all_pos = np.array(cr.all_positions)
     alt1 = np.array([possible_position[0] for possible_position in loc.measured_positions])
