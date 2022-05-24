@@ -47,10 +47,10 @@ class PositionTracking(BaseLocalization):
             measured_pos = self.calculate_position(estimated_positions[-1], measured_r, measured_v)
             measured_positions.append(measured_pos)
 
-            self.kf.predict()
-            self.kf.update(measured_pos)
-            estimated_pos = [self.kf.x[0], self.kf.x[1]]
-            estimated_positions.append(estimated_pos)
+            # self.kf.predict()
+            # self.kf.update(measured_pos)
+            # estimated_pos = [self.kf.x[0], self.kf.x[1]]
+            # estimated_positions.append(estimated_pos)
 
             # TODO: How do we update prev_r?
             # self.prev_r = np.linalg.norm(estimated_pos)
@@ -62,19 +62,17 @@ class PositionTracking(BaseLocalization):
 
 
 class MotionBasedLocalization(BaseLocalization):
-    def __init__(self, robot: BaseRobot2D, count=50, known_initial_position=False):
+    def __init__(self, robot: BaseRobot2D, count=50):
         super().__init__(robot, count)
         self.localized = False
         self.idx_localized = None
 
-        # Every measurement we get two possible locations for the robot
-        self.measured_positions = [([None], [None])] * self.count
-        self.chosen_positions = [[None, None]] * self.count
+        # Every measurement we get two possible locations for the robot. The initial position is not available
+        # through measurements, since the algorithm makes use of change in distance.
+        self.measured_positions = [([None, None], [None, None])] * (self.count + 1)
+        self.chosen_positions = [[None, None]] * (self.count + 1)
 
-        if known_initial_position:
-            self.chosen_positions[0] = robot.pos
-
-        # TODO: filtering
+        # TODO: noise and filtering
 
     def run(self):
         def find_max_similarity(prev_positions, new_positions):
@@ -93,25 +91,25 @@ class MotionBasedLocalization(BaseLocalization):
             self.robot.update()
             measured_r, measured_v = self.robot.get_measurement()
             [pos1, pos2] = self.calculate_possible_positions(measured_r, measured_v)
-            self.measured_positions[i] = (pos1, pos2)
+            self.measured_positions[i + 1] = (pos1, pos2)
 
             if i == 0:
                 prev_v = measured_v
                 continue
 
             if self.localized:
-                measured_pos = Util.closest_to(self.chosen_positions[i-1], [pos1, pos2])
-                self.chosen_positions[i] = measured_pos
+                measured_pos = Util.closest_to(self.chosen_positions[i], [pos1, pos2])
+                self.chosen_positions[i+1] = measured_pos
             else:
                 similarity = Util.cos_similarity(prev_v, measured_v)
                 if similarity < .99:
                     self.localized = True
-                    prev1 = self.measured_positions[i-1][0]
-                    prev2 = self.measured_positions[i-1][1]
+                    prev1 = self.measured_positions[i][0]
+                    prev2 = self.measured_positions[i][1]
 
                     max_pos = find_max_similarity([prev1, prev2], [pos1, pos2])
-                    self.chosen_positions[i] = max_pos
-                    self.idx_localized = i
+                    self.chosen_positions[i + 1] = max_pos
+                    self.idx_localized = i + 1
             prev_v = measured_v
 
 
@@ -123,16 +121,17 @@ if __name__ == '__main__':
     cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
     # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
-    loc = MotionBasedLocalization(cr, len(u), known_initial_position=False)
-    # loc.localized = True
+
+    loc = MotionBasedLocalization(cr, len(u))
     loc.run()
 
     if not loc.localized:
         plt.title("Couldn't localize")
 
-
-    # for i in reversed(range(loc.idx_localized)):
-    #     loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i+1], loc.measured_positions[i])
+    for i in reversed(range(loc.idx_localized)):
+        if i == 0:
+            continue
+        loc.chosen_positions[i] = Util.closest_to(loc.chosen_positions[i+1], loc.measured_positions[i])
 
     all_pos = np.array(cr.all_positions)
     alt1 = np.array([possible_position[0] for possible_position in loc.measured_positions])
@@ -143,4 +142,10 @@ if __name__ == '__main__':
     plt.plot(alt1[:, 0], alt1[:, 1])
     plt.plot(alt2[:, 0], alt2[:, 1])
     plt.plot(chosen_positions[:, 0], chosen_positions[:, 1])
+
+    # pt = PositionTracking(None, cr, len(u))
+    # m, e = pt.run()
+    # measuredp = np.array(m)
+    # plt.plot(measuredp[:, 0], measuredp[:, 1])
+
     plt.show()
