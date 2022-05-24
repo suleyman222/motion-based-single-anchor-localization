@@ -112,7 +112,7 @@ class MotionBasedLocalization(BaseLocalization):
                     self.idx_localized = i + 1
             prev_v = measured_v
 
-        # Calculate the positions of the robot before it was accurately localized
+        # Calculate the positions of the robot before it was precisely localized
         if loc.idx_localized:
             for i in reversed(range(loc.idx_localized)):
                 if i == 0:
@@ -130,8 +130,9 @@ class MotionBasedLocalization(BaseLocalization):
         else:
             rmse = Util.rmse(chosen_positions[1:], all_pos[1:])
             trunc_rmse = ['%.4f' % val for val in rmse]
-            plt.title(f"RMSE={trunc_rmse}")
-            plt.plot(chosen_positions[self.idx_localized][0], chosen_positions[self.idx_localized][1], 'r+')
+            plt.title(f"RMSE = {trunc_rmse}")
+            plt.plot(chosen_positions[self.idx_localized][0], chosen_positions[self.idx_localized][1], 'r+',
+                     ms=10, label="First precisely located position")
 
         plt.plot(all_pos[:, 0], all_pos[:, 1], label="Real path")
         plt.plot(chosen_positions[:, 0], chosen_positions[:, 1], label="Found path")
@@ -149,13 +150,13 @@ if __name__ == '__main__':
     u = [[1, 0]] * 100 + [[1, 2]] * 100
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
-    # cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
+    cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
-    cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
+    # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1, noise=False, r_std=.0001, v_std=0)
 
     loc = MotionBasedLocalization(cr, len(u))
     loc.run()
-    loc.plot_results(show_all_measurements=True)
+    loc.plot_results(show_all_measurements=False)
 
     # pt = PositionTracking(None, cr, len(u))
     # m, e = pt.run()
