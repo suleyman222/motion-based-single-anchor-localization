@@ -159,8 +159,10 @@ class MotionBasedLocalization(BaseLocalization):
         real_x = real_positions[:, 0]
         real_y = real_positions[:, 1]
 
-        ax.set_xlim(np.min(real_x), np.max(real_x))
-        ax.set_ylim(np.min(real_y), np.max(real_y))
+        chosen_x = self.chosen_positions[1:, 0]
+        chosen_y = self.chosen_positions[1:, 1]
+        ax.set_xlim(np.min(chosen_x), np.max(chosen_x))
+        ax.set_ylim(np.min(chosen_y), np.max(chosen_y))
         ax.legend()
 
         def animate(frame):
@@ -168,8 +170,8 @@ class MotionBasedLocalization(BaseLocalization):
             line_real.set_ydata(real_y[:frame])
 
             if self.localized:
-                line_chosen.set_xdata(self.chosen_positions[self.idx_localized:frame, 0])
-                line_chosen.set_ydata(self.chosen_positions[self.idx_localized:frame, 1])
+                line_chosen.set_xdata(chosen_x[self.idx_localized:frame])
+                line_chosen.set_ydata(chosen_y[self.idx_localized:frame])
 
             if not self.localized or frame < self.idx_localized:
                 line_measured1.set_xdata(self.measured_positions[:frame, 0, 0])
@@ -188,11 +190,11 @@ if __name__ == '__main__':
     u = [[1, 0]] * 100 + [[1, 2]] * 100
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
-    # cr = ControlledRobot2D(u, p0, dt=.1, noise=False, r_std=0.001, v_std=0.001)
+    cr = ControlledRobot2D(u, p0, dt=.1, noise=True, r_std=0.001, v_std=0.001)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
-    cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1, noise=False, r_std=.0001, v_std=0)
+    # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1, noise=False, r_std=.0001, v_std=0)
 
     loc = MotionBasedLocalization(cr, len(u))
     loc.run()
-    loc.plot_results(show_all_measurements=True)
+    loc.plot_results(show_all_measurements=False)
     loc.animate_results()
