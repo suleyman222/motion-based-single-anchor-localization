@@ -210,7 +210,7 @@ def run_mobile_anchor():
     dt = .1
     anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=-5, ay_noise=-1)
     target = RandomAccelerationRobot2D([3, 2], [1, 1], dt, ax_noise=2, ay_noise=7)
-    system = TwoRobotSystem(anchor, target)
+    system = TwoRobotSystem(None, target)
 
     loc = PositionTracking(None, robot_system=system, count=count)
     loc.run()

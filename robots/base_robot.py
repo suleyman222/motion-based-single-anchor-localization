@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-
+import robots.accelerating_robots as rob
 import numpy as np
 
 
@@ -32,20 +32,21 @@ class BaseRobot2D(ABC):
 
     @abstractmethod
     def update(self):
+        # TODO: Move saving position to TwoRobotSystem
         self.all_positions.append(self.pos)
 
 
 class TwoRobotSystem:
     def __init__(self, anchor_robot: BaseRobot2D, target_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
         if anchor_robot is None:
-            anchor_robot = BaseRobot2D([0., 0.], [0., 0.])
+            anchor_robot = rob.ConstantAccelerationRobot2D([0., 0.], [0., 0.], [0., 0.], dt=target_robot.dt)
 
         self.v_std = v_std
         self.r_std = r_std
         self.noise = noise
         self.anchor_robot = anchor_robot
         self.target_robot = target_robot
-        self.dt = anchor_robot.dt
+        self.dt = target_robot.dt
 
         if anchor_robot.dt != target_robot.dt:
             print("Target and anchor dt are different")
