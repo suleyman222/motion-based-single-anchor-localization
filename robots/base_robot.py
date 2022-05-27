@@ -36,23 +36,31 @@ class BaseRobot2D(ABC):
 
 
 class TwoRobotSystem:
-    def __init__(self, anchor_robot: BaseRobot2D, tracked_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
+    def __init__(self, anchor_robot: BaseRobot2D, target_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
+        if anchor_robot is None:
+            anchor_robot = BaseRobot2D([0., 0.], [0., 0.])
+
         self.v_std = v_std
         self.r_std = r_std
         self.noise = noise
         self.anchor_robot = anchor_robot
-        self.tracked_robot = tracked_robot
+        self.target_robot = target_robot
+        self.dt = anchor_robot.dt
+
+        if anchor_robot.dt != target_robot.dt:
+            print("Target and anchor dt are different")
 
     def update(self):
-        self.tracked_robot.update()
+        self.target_robot.update()
         self.anchor_robot.update()
 
     def get_measurement(self):
-        v_tracked_robot = self.tracked_robot.vel
+        # TODO: Change to return v_anchor, v_target and r
+        v_tracked_robot = self.target_robot.vel
         v_anchor_robot = self.anchor_robot.vel if self.anchor_robot else np.zeros(2)
 
         v = v_tracked_robot - v_anchor_robot
-        r = np.linalg.norm(self.tracked_robot.pos - self.anchor_robot.pos)
+        r = np.linalg.norm(self.target_robot.pos - self.anchor_robot.pos)
 
         if self.noise:
             r += np.random.normal(0, self.r_std)

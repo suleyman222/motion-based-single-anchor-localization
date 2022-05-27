@@ -11,11 +11,14 @@ from utils import Util
 
 
 class BaseLocalization(ABC):
-    def __init__(self, robot: BaseRobot2D, count=50):
-        self.robot = robot
+    def __init__(self, robot_system: TwoRobotSystem, count=50):
+        self.robot_system = robot_system
         self.count = count
-        self.dt = robot.dt
-        self.prev_r = np.linalg.norm(robot.pos)
+        self.dt = robot_system.dt
+        self.prev_r = np.linalg.norm(robot_system.target_robot.pos - robot_system.anchor_robot.pos)
+
+        self.measured_positions = np.zeros((count + 1, 2))
+        self.estimated_positions = np.zeros((count + 1, 2))
 
     def calculate_possible_positions(self, r, v):
         dr = (r - self.prev_r) / self.dt
@@ -34,80 +37,32 @@ class BaseLocalization(ABC):
 
 
 class PositionTracking(BaseLocalization):
-    def __init__(self, kf, robot: BaseRobot2D = ConstantAccelerationRobot2D(), count=50):
-        super().__init__(robot, count)
+    def __init__(self, kf, robot_system, count=50):
+        super().__init__(robot_system, count)
         self.kf = kf
 
-    def run(self):
-        init_pos = self.robot.pos
-        estimated_positions = [init_pos]
-        measured_positions = [init_pos]
-
-        for _ in range(self.count):
-            self.robot.update()
-            measured_r, measured_v = self.robot.get_measurement()
-            measured_pos = self.calculate_position(estimated_positions[-1], measured_r, measured_v)
-            measured_positions.append(measured_pos)
-
-            if self.kf:
-                self.kf.predict()
-                self.kf.update(measured_pos)
-                estimated_pos = [self.kf.x[0], self.kf.x[1]]
-                estimated_positions.append(estimated_pos)
-
-            # TODO: How do we update prev_r?
-            # self.prev_r = np.linalg.norm(estimated_pos)
-            self.prev_r = measured_r
-        return np.array(measured_positions), np.array(estimated_positions)
-
-    def calculate_position(self, prev_pos, r, v):
-        return Util.closest_to(prev_pos, self.calculate_possible_positions(r, v))
-
-
-class MobileAnchorPositionTracking(BaseLocalization):
-    def __init__(self, kf, robot_system: TwoRobotSystem, dt=1., count=50):
-        # super().__init__(tracked_robot, count)
-        self.dt = dt
-        self.robot_system = robot_system
-        self.count = count
-        self.prev_r = np.linalg.norm(robot_system.tracked_robot.pos - robot_system.anchor_robot.pos)
-
-        self.kf = kf
+        init_pos = self.robot_system.target_robot.pos - self.robot_system.anchor_robot.pos
+        self.estimated_positions[0] = init_pos
+        self.measured_positions[0] = init_pos
 
     def run(self):
-        init_pos = self.robot_system.tracked_robot.pos - self.robot_system.anchor_robot.pos
-        estimated_positions = [init_pos]
-        measured_positions = [init_pos]
-
-        for _ in range(self.count):
+        for i in range(1, self.count + 1):
             self.robot_system.update()
             measured_r, measured_v = self.robot_system.get_measurement()
-            measured_pos = self.calculate_position(estimated_positions[-1], measured_r, measured_v)
-            measured_positions.append(measured_pos)
+            measured_pos = self.calculate_position(self.estimated_positions[i-1], measured_r, measured_v)
+            self.measured_positions[i] = measured_pos
 
             if self.kf:
                 self.kf.predict()
                 self.kf.update(measured_pos)
                 estimated_pos = [self.kf.x[0], self.kf.x[1]]
-                estimated_positions.append(estimated_pos)
+                self.estimated_positions[i] = estimated_pos
             else:
-                estimated_positions.append(measured_pos)
+                self.estimated_positions[i] = measured_pos
 
             # TODO: How do we update prev_r?
             # self.prev_r = np.linalg.norm(estimated_pos)
             self.prev_r = measured_r
-        return np.array(measured_positions), np.array(estimated_positions)
-
-    def calculate_possible_positions(self, r, v):
-        dr = (r - self.prev_r) / self.dt
-        self.prev_r = r
-        s = np.linalg.norm(v)
-        alpha = np.arctan2(v[1], v[0])
-        theta = np.arccos(Util.clamp(dr / s, -1, 1))
-
-        pos1 = [r * np.cos(alpha + theta), r * np.sin(alpha + theta)]
-        pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)]
-        return [pos1, pos2]
 
     def calculate_position(self, prev_pos, r, v):
         return Util.closest_to(prev_pos, self.calculate_possible_positions(r, v))
@@ -257,8 +212,8 @@ def run_mobile_anchor():
     target = RandomAccelerationRobot2D([3, 2], [1, 1], dt, ax_noise=2, ay_noise=7)
     system = TwoRobotSystem(anchor, target)
 
-    loc = MobileAnchorPositionTracking(None, robot_system=system, dt=dt, count=count)
-    measured, estimated = loc.run()
+    loc = PositionTracking(None, robot_system=system, count=count)
+    loc.run()
 
     fig, axs = plt.subplots(2)
 
@@ -271,7 +226,7 @@ def run_mobile_anchor():
     target_pos = np.array(target.all_positions)
     relative_pos = target_pos - anchor_pos
     axs[1].plot(relative_pos[:, 0], relative_pos[:, 1])
-    axs[1].plot(estimated[:, 0], estimated[:, 1])
+    axs[1].plot(loc.estimated_positions[:, 0], loc.estimated_positions[:, 1])
 
     plt.show()
 
