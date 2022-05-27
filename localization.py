@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from robots.accelerating_robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D
-from robots.base_robot import BaseRobot2D
+from robots.base_robot import BaseRobot2D, TwoRobotSystem
 from robots.controlled_robot import ControlledRobot2D
 from utils import Util
 
@@ -59,6 +59,55 @@ class PositionTracking(BaseLocalization):
             # self.prev_r = np.linalg.norm(estimated_pos)
             self.prev_r = measured_r
         return np.array(measured_positions), np.array(estimated_positions)
+
+    def calculate_position(self, prev_pos, r, v):
+        return Util.closest_to(prev_pos, self.calculate_possible_positions(r, v))
+
+
+class MobileAnchorPositionTracking(BaseLocalization):
+    def __init__(self, kf, robot_system: TwoRobotSystem, dt=1., count=50):
+        # super().__init__(tracked_robot, count)
+        self.dt = dt
+        self.robot_system = robot_system
+        self.count = count
+        self.prev_r = np.linalg.norm(robot_system.tracked_robot.pos - robot_system.anchor_robot.pos)
+
+        self.kf = kf
+
+    def run(self):
+        init_pos = self.robot_system.tracked_robot.pos - self.robot_system.anchor_robot.pos
+        estimated_positions = [init_pos]
+        measured_positions = [init_pos]
+
+        for _ in range(self.count):
+            self.robot_system.update()
+            measured_r, measured_v = self.robot_system.get_measurement()
+            measured_pos = self.calculate_position(estimated_positions[-1], measured_r, measured_v)
+            measured_positions.append(measured_pos)
+
+            if self.kf:
+                self.kf.predict()
+                self.kf.update(measured_pos)
+                estimated_pos = [self.kf.x[0], self.kf.x[1]]
+                estimated_positions.append(estimated_pos)
+            else:
+                estimated_positions.append(measured_pos)
+
+            # TODO: How do we update prev_r?
+            # self.prev_r = np.linalg.norm(estimated_pos)
+            self.prev_r = measured_r
+        return np.array(measured_positions), np.array(estimated_positions)
+
+    def calculate_possible_positions(self, r, v):
+        dr = (r - self.prev_r) / self.dt
+        self.prev_r = r
+        s = np.linalg.norm(v)
+        alpha = np.arctan2(v[1], v[0])
+        theta = np.arccos(Util.clamp(dr / s, -1, 1))
+
+        pos1 = [r * np.cos(alpha + theta), r * np.sin(alpha + theta)]
+        pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)]
+        return [pos1, pos2]
 
     def calculate_position(self, prev_pos, r, v):
         return Util.closest_to(prev_pos, self.calculate_possible_positions(r, v))
@@ -181,11 +230,12 @@ class MotionBasedLocalization(BaseLocalization):
 
             return line_real, line_chosen, line_measured1, line_measured2
 
-        ani = matplotlib.animation.FuncAnimation(fig, animate, frames=len(u), interval=10, save_count=len(u), blit=True)
+        ani = matplotlib.animation.FuncAnimation(fig, animate, frames=self.count, interval=10,
+                                                 save_count=self.count, blit=True)
         ani.save('ani.gif', 'pillow')
 
 
-if __name__ == '__main__':
+def run_static_anchor():
     p0 = [3., 2.]
     u = [[1, 0]] * 100 + [[1, 2]] * 100
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
@@ -198,3 +248,34 @@ if __name__ == '__main__':
     loc.run()
     loc.plot_results(show_all_measurements=False)
     loc.animate_results()
+
+
+def run_mobile_anchor():
+    count = 100
+    dt = .1
+    anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=-5, ay_noise=-1)
+    target = RandomAccelerationRobot2D([3, 2], [1, 1], dt, ax_noise=2, ay_noise=7)
+    system = TwoRobotSystem(anchor, target)
+
+    loc = MobileAnchorPositionTracking(None, robot_system=system, dt=dt, count=count)
+    measured, estimated = loc.run()
+
+    fig, axs = plt.subplots(2)
+
+    # Robot paths
+    axs[0].plot([pos[0] for pos in anchor.all_positions], [pos[1] for pos in anchor.all_positions])
+    axs[0].plot([pos[0] for pos in target.all_positions], [pos[1] for pos in target.all_positions])
+
+    # Location of target relative to anchor robot
+    anchor_pos = np.array(anchor.all_positions)
+    target_pos = np.array(target.all_positions)
+    relative_pos = target_pos - anchor_pos
+    axs[1].plot(relative_pos[:, 0], relative_pos[:, 1])
+    axs[1].plot(estimated[:, 0], estimated[:, 1])
+
+    plt.show()
+
+
+if __name__ == '__main__':
+    # run_static_anchor()
+    run_mobile_anchor()
