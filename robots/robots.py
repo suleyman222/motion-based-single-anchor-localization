@@ -1,7 +1,6 @@
+import copy
 from abc import ABC, abstractmethod
 from typing import Optional
-
-import robots.accelerating_robots as rob
 import numpy as np
 
 
@@ -21,10 +20,53 @@ class BaseRobot2D(ABC):
         pass
 
 
+class ConstantAccelerationRobot2D(BaseRobot2D):
+    def __init__(self, init_pos=None, init_vel=None, accel=None, dt=1.):
+        super().__init__(init_pos, init_vel, dt)
+
+        if accel is None:
+            accel = [.1, .1]
+
+        self.accel = np.array(accel)
+
+    def update(self):
+        self.vel = self.vel + self.accel * self.dt
+        self.pos = self.pos + self.vel * self.dt
+        super().update()
+
+
+class RandomAccelerationRobot2D(BaseRobot2D):
+    def __init__(self, init_pos=None, init_vel=None, dt=1., ax_noise=.2, ay_noise=.1):
+        super().__init__(init_pos, init_vel, dt)
+        self.ay_noise = ay_noise
+        self.ax_noise = ax_noise
+        self.accel = None
+
+    def update(self):
+        self.accel = np.dot([np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise], self.dt)
+        self.vel = self.vel + np.dot(self.accel, self.dt)
+        self.pos = self.pos + np.dot(self.vel, self.dt)
+        super().update()
+
+
+class ControlledRobot2D(BaseRobot2D):
+    def __init__(self, control_input,  dt=1., init_pos=None, init_vel=None):
+        super().__init__(init_pos, init_vel, dt)
+        self.localized = False
+        self.control_input = copy.deepcopy(control_input)
+        self.prev_r = np.linalg.norm(self.pos)
+
+    def update(self):
+        if self.control_input:
+            self.vel = np.array(self.control_input.pop(0))
+            self.pos = self.pos + np.dot(self.vel, self.dt)
+            super().update()
+
+
 class TwoRobotSystem:
     def __init__(self, anchor_robot: Optional[BaseRobot2D], target_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
         if anchor_robot is None:
-            anchor_robot = rob.ConstantAccelerationRobot2D([0., 0.], [0., 0.], [0., 0.], dt=target_robot.dt)
+            anchor_robot = ConstantAccelerationRobot2D([0., 0.], [0., 0.], [0., 0.], dt=target_robot.dt)
 
         self.v_std = v_std
         self.r_std = r_std
@@ -58,6 +100,3 @@ class TwoRobotSystem:
             v = v + np.random.normal(0, self.v_std)
             # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
         return r, v
-
-
-

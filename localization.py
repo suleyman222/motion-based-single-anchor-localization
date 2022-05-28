@@ -4,9 +4,7 @@ import matplotlib.animation
 import numpy as np
 from matplotlib import pyplot as plt
 
-from robots.accelerating_robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D
-from robots.base_robot import BaseRobot2D, TwoRobotSystem
-from robots.controlled_robot import ControlledRobot2D
+from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D, ControlledRobot2D, TwoRobotSystem
 from utils import Util
 
 
