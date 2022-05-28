@@ -69,8 +69,8 @@ class PositionTracking(BaseLocalization):
 
 
 class MotionBasedLocalization(BaseLocalization):
-    def __init__(self, robot: BaseRobot2D, count=50):
-        super().__init__(robot, count)
+    def __init__(self, robot_system: TwoRobotSystem, count=50):
+        super().__init__(robot_system, count)
         self.localized = False
         self.idx_localized = None
         self.prev_v = [None, None]
@@ -95,8 +95,8 @@ class MotionBasedLocalization(BaseLocalization):
             return max_position
 
         for i in range(self.count):
-            self.robot.update()
-            measured_r, measured_v = self.robot.get_measurement()
+            self.robot_system.update()
+            measured_r, measured_v = self.robot_system.get_measurement()
             [pos1, pos2] = self.calculate_possible_positions(measured_r, measured_v)
             self.measured_positions[i + 1] = (pos1, pos2)
 
@@ -127,7 +127,8 @@ class MotionBasedLocalization(BaseLocalization):
                 self.chosen_positions[i] = Util.closest_to(self.chosen_positions[i + 1], self.measured_positions[i])
 
     def plot_results(self, show_all_measurements=False):
-        all_pos = np.array(self.robot.all_positions)
+        rel_positions = [t_pos - a_pos for (t_pos, a_pos) in zip(self.robot_system.target_robot.all_positions, self.robot_system.anchor_robot.all_positions)]
+        all_pos = np.array(rel_positions)
         alt1 = np.array([possible_position[0] for possible_position in self.measured_positions])
         alt2 = np.array([possible_position[1] for possible_position in self.measured_positions])
         chosen_positions = np.array(self.chosen_positions)
@@ -159,7 +160,8 @@ class MotionBasedLocalization(BaseLocalization):
         line_measured1, = ax.plot([], [], 'g--', ms=10, label="Measurement 1")
         line_measured2, = ax.plot([], [], 'y--', ms=10, label="Measurement 2")
 
-        real_positions = np.array(self.robot.all_positions)
+        # TODO: Fix these real positions
+        real_positions = np.array(self.robot_system.target_robot.all_positions)
         real_x = real_positions[:, 0]
         real_y = real_positions[:, 1]
 
@@ -195,11 +197,13 @@ def run_static_anchor():
     u = [[1, 0]] * 100 + [[1, 2]] * 100
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
-    cr = ControlledRobot2D(u, p0, dt=.1, noise=True, r_std=0.001, v_std=0.001)
+    # cr = ControlledRobot2D(u, p0, dt=.1, noise=True, r_std=0.001, v_std=0.001)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
-    # cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1, noise=False, r_std=.0001, v_std=0)
+    cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1, noise=False, r_std=.0001, v_std=0)
+    cr_anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], .1, ax_noise=1, ay_noise=10, noise=False, r_std=.0001, v_std=0)
 
-    loc = MotionBasedLocalization(cr, len(u))
+    system = TwoRobotSystem(cr_anchor, cr)
+    loc = MotionBasedLocalization(system, len(u))
     loc.run()
     loc.plot_results(show_all_measurements=False)
     loc.animate_results()
@@ -232,5 +236,5 @@ def run_mobile_anchor():
 
 
 if __name__ == '__main__':
-    # run_static_anchor()
-    run_mobile_anchor()
+    run_static_anchor()
+    # run_mobile_anchor()

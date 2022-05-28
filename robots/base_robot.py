@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from typing import Optional
+
 import robots.accelerating_robots as rob
 import numpy as np
 
@@ -37,7 +39,7 @@ class BaseRobot2D(ABC):
 
 
 class TwoRobotSystem:
-    def __init__(self, anchor_robot: BaseRobot2D, target_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
+    def __init__(self, anchor_robot: Optional[BaseRobot2D], target_robot: BaseRobot2D, noise=False, r_std=0., v_std=0.):
         if anchor_robot is None:
             anchor_robot = rob.ConstantAccelerationRobot2D([0., 0.], [0., 0.], [0., 0.], dt=target_robot.dt)
 
