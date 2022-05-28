@@ -25,10 +25,10 @@ class Animator:
         self.anchor_y = self.loc.robot_system.all_anchor_positions[:, 1]
         self.target_x = self.loc.robot_system.all_target_positions[:, 0]
         self.target_y = self.loc.robot_system.all_target_positions[:, 1]
-        self.chosen_x = self.loc.estimated_positions[1:, 0]
-        self.chosen_y = self.loc.estimated_positions[1:, 1]
-        self.measured_x = self.loc.measured_positions[1:, 0]
-        self.measured_y = self.loc.measured_positions[1:, 1]
+        self.chosen_x = self.loc.estimated_positions[:, 0]
+        self.chosen_y = self.loc.estimated_positions[:, 1]
+        self.measured_x = self.loc.measured_positions[:, 0]
+        self.measured_y = self.loc.measured_positions[:, 1]
 
     def run(self):
         all_x = np.concatenate((self.anchor_x, self.target_x, self.chosen_x, self.measured_x))

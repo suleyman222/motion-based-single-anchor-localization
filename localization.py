@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+import filterpy.common
 import matplotlib.animation
 import numpy as np
 from matplotlib import pyplot as plt
@@ -140,7 +141,7 @@ class MotionBasedLocalization(BaseLocalization):
         self.robot_system.all_target_positions = np.array(self.robot_system.all_target_positions)
 
     def plot_results(self, show_all_measurements=False):
-        all_pos = np.array(self.robot_system.all_target_positions - self.robot_system.all_anchor_positions)
+        all_pos = np.array(self.robot_system.all_target_positions)
         alt1 = np.array([possible_position[0] for possible_position in self.measured_positions])
         alt2 = np.array([possible_position[1] for possible_position in self.measured_positions])
         chosen_positions = np.array(self.estimated_positions)
@@ -260,12 +261,25 @@ def run_motion_based_localization():
 
 def run_position_tracking():
     count = 100
+    pos0 = [3., 2.]
+    v0 = [1, 1]
     dt = .1
+    r_std = .0005
+    v_std = .0005
+    acc_std = 5
+
     anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=-5, ay_noise=-1)
     target = RandomAccelerationRobot2D([3, 2], [1, 1], dt, ax_noise=2, ay_noise=7)
-    system = TwoRobotSystem(anchor, target)
+    system = TwoRobotSystem(anchor, target, noise=True, v_std=0.001, r_std=0.001)
 
-    loc = PositionTracking(None, robot_system=system, count=count)
+    kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
+    kf.Q = filterpy.common.Q_discrete_white_noise(2, dt=dt, var=acc_std ** 2, block_size=2, order_by_dim=False)
+    kf.P *= 0
+
+    kf.x = pos0 + v0
+    kf.R *= (r_std ** 2 + v_std ** 2) * 1000000000  # TODO: this is wrong, needs to change
+
+    loc = PositionTracking(kf, robot_system=system, count=count)
     loc.run()
     loc.animate_results(save=False)
 
@@ -284,5 +298,5 @@ def run_position_tracking():
 
 
 if __name__ == '__main__':
-    # run_motion_based_localization()
-    run_position_tracking()
+    run_motion_based_localization()
+    # run_position_tracking()

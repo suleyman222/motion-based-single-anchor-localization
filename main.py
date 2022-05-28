@@ -2,7 +2,7 @@ import filterpy.common
 import numpy as np
 
 from localization import PositionTracking
-from robots.accelerating_robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D
+from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D
 from utils import Util
 
 
