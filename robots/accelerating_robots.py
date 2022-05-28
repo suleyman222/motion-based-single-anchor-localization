@@ -3,8 +3,8 @@ from robots.base_robot import BaseRobot2D
 
 
 class ConstantAccelerationRobot2D(BaseRobot2D):
-    def __init__(self, init_pos=None, init_vel=None, accel=None, dt=1., noise=False, r_std=0., v_std=0.):
-        super().__init__(init_pos, init_vel, noise, r_std, v_std, dt)
+    def __init__(self, init_pos=None, init_vel=None, accel=None, dt=1.):
+        super().__init__(init_pos, init_vel, dt)
 
         if accel is None:
             accel = [.1, .1]
@@ -18,8 +18,8 @@ class ConstantAccelerationRobot2D(BaseRobot2D):
 
 
 class RandomAccelerationRobot2D(BaseRobot2D):
-    def __init__(self, init_pos=None, init_vel=None, dt=1., noise=False, r_std=0., v_std=0., ax_noise=.2, ay_noise=.1):
-        super().__init__(init_pos, init_vel, noise, r_std, v_std, dt)
+    def __init__(self, init_pos=None, init_vel=None, dt=1., ax_noise=.2, ay_noise=.1):
+        super().__init__(init_pos, init_vel, dt)
         self.ay_noise = ay_noise
         self.ax_noise = ax_noise
         self.accel = None
