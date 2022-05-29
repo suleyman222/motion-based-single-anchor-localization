@@ -32,7 +32,6 @@ class ConstantAccelerationRobot2D(BaseRobot2D):
     def update(self):
         self.vel = self.vel + self.accel * self.dt
         self.pos = self.pos + self.vel * self.dt
-        super().update()
 
 
 class RandomAccelerationRobot2D(BaseRobot2D):
@@ -43,10 +42,10 @@ class RandomAccelerationRobot2D(BaseRobot2D):
         self.accel = None
 
     def update(self):
-        self.accel = np.dot([np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise], self.dt)
+        # self.accel = np.dot([np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise], self.dt)
+        self.accel = [np.random.randn() * self.ax_noise, np.random.randn() * self.ay_noise]
         self.vel = self.vel + np.dot(self.accel, self.dt)
         self.pos = self.pos + np.dot(self.vel, self.dt)
-        super().update()
 
 
 class ControlledRobot2D(BaseRobot2D):
@@ -60,7 +59,6 @@ class ControlledRobot2D(BaseRobot2D):
         if self.control_input:
             self.vel = np.array(self.control_input.pop(0))
             self.pos = self.pos + np.dot(self.vel, self.dt)
-            super().update()
 
 
 class TwoRobotSystem:
