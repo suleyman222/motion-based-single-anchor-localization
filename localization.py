@@ -1,3 +1,4 @@
+import copy
 from abc import ABC, abstractmethod
 
 import filterpy.common
@@ -71,8 +72,8 @@ class PositionTracking(BaseLocalization):
     def calculate_position(self, prev_pos, r, v):
         return Util.closest_to(prev_pos, self.calculate_possible_positions(r, v))
 
-    def animate_results(self, save):
-        ani = Animator(self, "Position tracking (known initial position)", save)
+    def animate_results(self, save, title):
+        ani = Animator(self, title, save)
         ani.run()
 
 
@@ -151,30 +152,30 @@ class MotionBasedLocalization(BaseLocalization):
         else:
             rmse = Util.rmse(chosen_positions[1:], all_pos[1:])
             trunc_rmse = ['%.4f' % val for val in rmse]
-            plt.title(f"RMSE = {trunc_rmse}")
+            plt.title(f"Motion-based localization (unknown initial position), dt = {self.dt}, RMSE = {trunc_rmse}")
             plt.plot(chosen_positions[self.idx_localized][0], chosen_positions[self.idx_localized][1], 'r+',
                      ms=10, label="First precisely located position")
-
-        plt.plot(all_pos[:, 0], all_pos[:, 1], label="Actual path")
-        plt.plot(chosen_positions[:, 0], chosen_positions[:, 1], label="Found path")
 
         if show_all_measurements:
             plt.plot(alt1[:, 0], alt1[:, 1], 'g--', label="Measurement 1")
             plt.plot(alt2[:, 0], alt2[:, 1], 'y--', label="Measurement 2")
 
+        plt.plot(all_pos[:, 0], all_pos[:, 1], 'b-', label="Actual path")
+        plt.plot(chosen_positions[:, 0], chosen_positions[:, 1], 'r-', label="Found path")
+
         plt.legend()
         plt.show()
 
-    def animate_results(self, save):
+    def animate_results(self, save, title):
         # TODO: Refactor this into Animator (make PositionTracking show both measurements)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.set_title = "Motion based localization (unknown initial position)"
-        line_anchor, = ax.plot([], [], 'm-', ms=10, label="Anchor robot path")
-        line_actual_target, = ax.plot([], [], 'b-', ms=10, label="Actual target path")
-        line_chosen, = ax.plot([], [], 'r-', ms=10, label="Found path")
-        line_measured1, = ax.plot([], [], 'g--', ms=10, label="Measurement 1")
-        line_measured2, = ax.plot([], [], 'y--', ms=10, label="Measurement 2")
+        fig, axs = plt.subplots(1, 3)
+        # ax = fig.add_subplot(111)
+        axs[0].set_title(title)
+        line_anchor, = axs[0].plot([], [], 'm-', ms=10, label="Anchor robot path")
+        line_actual_target, = axs[0].plot([], [], 'b-', ms=10, label="Actual target path")
+        line_measured1, = axs[0].plot([], [], 'g--', ms=10, label="Measurement 1")
+        line_measured2, = axs[0].plot([], [], 'y--', ms=10, label="Measurement 2")
+        line_chosen, = axs[0].plot([], [], 'r-', ms=10, label="Found path")
 
         anchor_x = self.robot_system.all_anchor_positions[:, 0]
         anchor_y = self.robot_system.all_anchor_positions[:, 1]
@@ -190,9 +191,9 @@ class MotionBasedLocalization(BaseLocalization):
         measured2_x = self.measured_positions[1:, 1, 0]
         measured2_y = self.measured_positions[1:, 1, 1]
 
-        ax.set_xlim(np.min([measured1_x, measured2_x]), np.max([measured1_x, measured2_x]))
-        ax.set_ylim(np.min([measured1_y, measured2_y]), np.max([measured1_y, measured2_y]))
-        ax.legend()
+        axs[0].set_xlim(np.min([measured1_x, measured2_x]), np.max([measured1_x, measured2_x]))
+        axs[0].set_ylim(np.min([measured1_y, measured2_y]), np.max([measured1_y, measured2_y]))
+        axs[0].legend()
 
         # Slider
         axamp = plt.axes([0.25, .03, 0.50, 0.02])
@@ -216,9 +217,9 @@ class MotionBasedLocalization(BaseLocalization):
             line_actual_target.set_data(target_x[:val], target_y[:val])
             if self.localized:
                 line_chosen.set_data(chosen_x[self.idx_localized:val], chosen_y[self.idx_localized:val])
-            if not self.localized or val < self.idx_localized:
-                line_measured1.set_data(self.measured_positions[:val, 0, 0], self.measured_positions[:val, 0, 1])
-                line_measured2.set_data(self.measured_positions[:val, 1, 0], self.measured_positions[:val, 1, 1])
+            # if not self.localized or val < self.idx_localized:
+            line_measured1.set_data(self.measured_positions[:val, 0, 0], self.measured_positions[:val, 0, 1])
+            line_measured2.set_data(self.measured_positions[:val, 1, 0], self.measured_positions[:val, 1, 1])
             fig.canvas.draw_idle()
 
         def on_click(event):
@@ -239,62 +240,82 @@ class MotionBasedLocalization(BaseLocalization):
 
         if save:
             ani.save('ani.gif', 'pillow')
+        self.robot_system.plot_distances(axs[1], axs[2])
         plt.show()
 
 
 def run_motion_based_localization():
     p0 = [3., 2.]
     u = [[1, 0]] * 100 + [[1, 2]] * 100
+    dt = .1
     # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
     #      [1, 2], [1, 2]]
-    # cr = ControlledRobot2D(u, p0, dt=.1, noise=True, r_std=0.001, v_std=0.001)
-    # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=.1)
-    cr = RandomAccelerationRobot2D(p0, [1, 1], .1, ax_noise=10, ay_noise=1)
-    cr_anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], .1, ax_noise=1, ay_noise=10)
+    # cr = ControlledRobot2D(u, dt=dt, init_pos=p0)
+    # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=dt)
+    cr = RandomAccelerationRobot2D(p0, [1, 1], dt, ax_noise=1.5, ay_noise=1)
+    cr_anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], dt, ax_noise=1, ay_noise=1.5)
 
-    system = TwoRobotSystem(cr_anchor, cr)
+    system = TwoRobotSystem(None, cr, noise=True, r_std=.001, v_std=0)
     loc = MotionBasedLocalization(system, len(u))
     loc.run()
-    loc.plot_results(show_all_measurements=False)
-    loc.animate_results(save=True)
+    loc.plot_results(show_all_measurements=True)
+
+    rmse_est = Util.rmse(loc.estimated_positions[1:], loc.robot_system.all_target_positions[1:])
+    trunc_rmse_est = ['%.4f' % val for val in rmse_est]
+    title = f"Motion-based localization (unknown initial position), dt = {dt}, RMSE = {trunc_rmse_est}"
+
+    loc.animate_results(save=False, title=title)
 
 
 def run_position_tracking():
-    count = 100
+    count = 1000
     pos0 = [3., 2.]
     v0 = [1, 1]
     dt = .1
-    r_std = .0005
-    v_std = .0005
-    acc_std = 5
+    r_std = 0
+    v_std = .1
+    is_noisy = True
 
-    anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=-5, ay_noise=-1)
-    target = RandomAccelerationRobot2D([3, 2], [1, 1], dt, ax_noise=2, ay_noise=7)
-    system = TwoRobotSystem(anchor, target, noise=True, v_std=0.001, r_std=0.001)
+    ax_std = .4
+    ay_std = .7
+
+    u = [[1, 0]] * 100 + [[1, 2]] * 100
+    # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
+    #      [1, 2], [1, 2]]
+
+    # anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=.2, ay_noise=-.1)
+    # target = RandomAccelerationRobot2D(pos0, [1, 1], dt, ax_noise=ax_std, ay_noise=ay_std)
+    target = ControlledRobot2D(u, dt, pos0)
+    count = len(u)
+    system = TwoRobotSystem(None, target, noise=is_noisy, v_std=v_std, r_std=r_std)
 
     kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
-    kf.Q = filterpy.common.Q_discrete_white_noise(2, dt=dt, var=acc_std ** 2, block_size=2, order_by_dim=False)
-    kf.P *= 0
+    # kf.Q = filterpy.common.Q_discrete_white_noise(2, dt=dt, var=ax_std ** 2, block_size=2, order_by_dim=False)
+
+    ax_var = ax_std**2
+    ay_var = ay_std**2
+    kf.Q = np.array([[dt**4 * ax_var / 4, 0, dt**3 * ax_var / 2, 0],
+                     [0, dt**4 * ay_var / 4, 0, dt**3 * ay_var / 2],
+                     [dt**3 * ax_var / 2, 0, dt**2 * ax_var, 0],
+                     [0, dt**3 * ay_var/2, 0, dt**2 * ay_var]])
+    kf.P *= copy.deepcopy(kf.Q)
 
     kf.x = pos0 + v0
-    kf.R *= (r_std ** 2 + v_std ** 2) * 1000000000  # TODO: this is wrong, needs to change
+    kf.R *= (r_std ** 2 + v_std ** 2) * 100000  # TODO: this is wrong, needs to change
 
-    loc = PositionTracking(kf, robot_system=system, count=count)
+    loc = PositionTracking(None, robot_system=system, count=count)
     loc.run()
-    loc.animate_results(save=False)
 
-    # fig, axs = plt.subplots(2)
-    #
-    # # Robot paths
-    # axs[0].plot(system.all_anchor_positions[:, 0], system.all_anchor_positions[:, 1])
-    # axs[0].plot(system.all_target_positions[:, 0], system.all_target_positions[:, 1])
-    #
-    # # Location of target relative to anchor robot
-    # relative_pos = system.all_target_positions - system.all_anchor_positions
-    # axs[1].plot(relative_pos[:, 0], relative_pos[:, 1])
-    # axs[1].plot(loc.estimated_positions[:, 0], loc.estimated_positions[:, 1])
-    #
-    # plt.show()
+    rmse_est = Util.rmse(loc.estimated_positions, loc.robot_system.all_target_positions)
+
+    trunc_rmse_est = ['%.4f' % val for val in rmse_est]
+    title = f"Position Tracking, dt = {dt}, RMSE = {trunc_rmse_est}"
+    if is_noisy:
+        title += f", $\sigma_r={r_std}$, $\sigma_v$ = {v_std}"
+    rmse_meas = Util.rmse(loc.measured_positions, loc.robot_system.all_target_positions)
+    print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
+
+    loc.animate_results(save=False, title=title)
 
 
 if __name__ == '__main__':

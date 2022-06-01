@@ -2,6 +2,8 @@ import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
+from matplotlib.patches import FancyArrow
+# from localization import BaseLocalization
 
 
 class Animator:
@@ -14,8 +16,8 @@ class Animator:
         self.ax.set_title(title)
         self.line_anchor, = self.ax.plot([], [], 'm-', ms=10, label="Anchor robot path")
         self.line_actual_target, = self.ax.plot([], [], 'b-', ms=10, label="Actual target path")
-        self.line_chosen, = self.ax.plot([], [], 'r-', ms=10, label="Estimated target path")
         self.line_measured, = self.ax.plot([], [], 'g--', ms=10, label="Measured target path")
+        self.line_chosen, = self.ax.plot([], [], 'r-', ms=10, label="Estimated target path")
 
         axamp = plt.axes([0.25, .03, 0.50, 0.02])
         self.slider = Slider(axamp, 'Timestep', 0, self.loc.count, valinit=0, valstep=1)
