@@ -1,9 +1,8 @@
 import matplotlib
-import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
-from matplotlib.patches import FancyArrow
-# from localization import BaseLocalization
+from itertools import chain
+import matplotlib.animation
 
 
 class Animator:
@@ -16,8 +15,9 @@ class Animator:
         self.ax.set_title(title)
         self.line_anchor, = self.ax.plot([], [], 'm-', ms=10, label="Anchor robot path")
         self.line_actual_target, = self.ax.plot([], [], 'b-', ms=10, label="Actual target path")
-        self.line_measured, = self.ax.plot([], [], 'g--', ms=10, label="Measured target path")
-        self.line_chosen, = self.ax.plot([], [], 'r-', ms=10, label="Estimated target path")
+        self.line_measured1, = self.ax.plot([], [], 'g--', ms=10, label="Measured target path")
+        self.line_measured2, = self.ax.plot([], [], 'y--', ms=10, label="Measured target path")
+        self.line_estimated, = self.ax.plot([], [], 'r-', ms=10, label="Estimated target path")
 
         axamp = plt.axes([0.25, .03, 0.50, 0.02])
         self.slider = Slider(axamp, 'Timestep', 0, self.loc.count, valinit=0, valstep=1)
@@ -25,18 +25,25 @@ class Animator:
 
         self.anchor_x = self.loc.robot_system.all_anchor_positions[:, 0]
         self.anchor_y = self.loc.robot_system.all_anchor_positions[:, 1]
+
         self.target_x = self.loc.robot_system.all_target_positions[:, 0]
         self.target_y = self.loc.robot_system.all_target_positions[:, 1]
-        self.chosen_x = self.loc.estimated_positions[:, 0]
-        self.chosen_y = self.loc.estimated_positions[:, 1]
-        self.measured_x = self.loc.measured_positions[:, 0]
-        self.measured_y = self.loc.measured_positions[:, 1]
+
+        self.estimated_x = self.loc.estimated_positions[:, 0]
+        self.estimated_y = self.loc.estimated_positions[:, 1]
+
+        self.measured1_x = self.loc.measured_positions[:, 0, 0]
+        self.measured1_y = self.loc.measured_positions[:, 0, 1]
+        self.measured2_x = self.loc.measured_positions[:, 1, 0]
+        self.measured2_y = self.loc.measured_positions[:, 1, 1]
 
     def run(self):
-        all_x = np.concatenate((self.anchor_x, self.target_x, self.chosen_x, self.measured_x))
-        all_y = np.concatenate((self.anchor_y, self.target_y, self.chosen_y, self.measured_y))
-        self.ax.set_xlim(np.min(all_x), np.max(all_x))
-        self.ax.set_ylim(np.amin(all_y), np.amax(all_y))
+        max_x = max(chain(self.anchor_x, self.target_x, self.estimated_x, self.measured1_x, self.measured2_x))
+        max_y = max(chain(self.anchor_y, self.target_y, self.estimated_y, self.measured1_y, self.measured2_y))
+        min_x = min(chain(self.anchor_x, self.target_x, self.estimated_x, self.measured1_x, self.measured2_x))
+        min_y = min(chain(self.anchor_y, self.target_y, self.estimated_y, self.measured1_y, self.measured2_y))
+        self.ax.set_xlim(min_x, max_x)
+        self.ax.set_ylim(min_y, max_y)
         self.ax.legend()
 
         # call update function on slider value change
@@ -51,12 +58,13 @@ class Animator:
 
     def animate(self, frame):
         if self.is_manual:
-            return self.line_anchor, self.line_actual_target, self.line_chosen, self.line_measured
+            return self.line_anchor, self.line_actual_target, self.line_estimated,\
+                   self.line_measured1, self.line_measured2
 
         # Calls update due to change
         self.slider.set_val(frame)
         self.is_manual = False
-        return self.line_anchor, self.line_actual_target, self.line_chosen, self.line_measured
+        return self.line_anchor, self.line_actual_target, self.line_estimated, self.line_measured1, self.line_measured2
 
     def update_slider(self, val):
         self.is_manual = True
@@ -65,8 +73,9 @@ class Animator:
     def update(self, val):
         self.line_anchor.set_data(self.anchor_x[:val], self.anchor_y[:val])
         self.line_actual_target.set_data(self.target_x[:val], self.target_y[:val])
-        self.line_chosen.set_data(self.chosen_x[:val], self.chosen_y[:val])
-        self.line_measured.set_data(self.measured_x[:val], self.measured_y[:val])
+        self.line_estimated.set_data(self.estimated_x[self.loc.idx_loc:val], self.estimated_y[self.loc.idx_loc:val])
+        self.line_measured1.set_data(self.measured1_x[:val], self.measured1_y[:val])
+        self.line_measured2.set_data(self.measured2_x[:val], self.measured2_y[:val])
         self.fig.canvas.draw_idle()
 
     def on_click(self, event):
