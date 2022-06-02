@@ -23,15 +23,10 @@ class Animator:
         self.measured_target_pos_2 = measured_target_pos_2
 
         if plot_error_figures:
-            fig, axs = plt.subplots(2, 2)
-            self.fig = fig
-            self.ax_animation = axs[0][0]
-            self.axs_error = np.insert(axs[1], 0, axs[0][1])
+            self._initialize_error_figures()
         else:
             self.fig = plt.figure()
             self.ax_animation = self.fig.add_subplot(111)
-        self.ax_animation.set_title(title)
-        self.ax_animation.legend()
 
         self.line_anchor, = self.ax_animation.plot(anchor_pos[0], anchor_pos[1], 'm-',
                                                    ms=10, label="Anchor robot path")
@@ -43,6 +38,11 @@ class Animator:
                                                       'y--', ms=10, label="Measured target path 2")
         self.line_estimated, = self.ax_animation.plot(estimated_target_pos[0], estimated_target_pos[1],
                                                       'r-', ms=10, label="Estimated target path")
+
+        self.fig.suptitle(title)
+        self.ax_animation.legend()
+        self.ax_animation.set_xlabel("X coordinate")
+        self.ax_animation.set_ylabel("Y coordinate")
 
         axamp = plt.axes([0.25, .03, 0.50, 0.02])
         self.slider = Slider(axamp, 'Timestep', 0, self.count, valinit=0, valstep=1)
@@ -57,8 +57,6 @@ class Animator:
                                                  save_count=self.count)
         if self.save:
             ani.save('ani.gif', 'pillow')
-        if self.plot_error_figures:
-            self._error_figures()
         plt.show()
 
     def _animate(self, frame):
@@ -83,6 +81,13 @@ class Animator:
         self.line_measured1.set_data(self.measured_target_pos_1[0][:val], self.measured_target_pos_1[1][:val])
         self.line_measured2.set_data(self.measured_target_pos_2[0][:val], self.measured_target_pos_2[1][:val])
 
+        self.line_r_error.set_data(range(val), self.r_error[:val])
+        self.line_r_dot_error.set_data(range(val), self.r_dot_error[:val])
+        if val >= self.idx_loc:
+            self.line_pos_error.set_data(range(self.idx_loc, val), self.pos_err[:val - self.idx_loc])
+        else:
+            self.line_pos_error.set_data([], [])
+
         self.fig.canvas.draw_idle()
 
     def _on_click(self, event):
@@ -95,20 +100,26 @@ class Animator:
             # user clicked somewhere else on canvas = unpause
             self.is_manual = False
 
-    def _error_figures(self):
-        pos_err = np.linalg.norm(self.target_pos.T[self.idx_loc:] - self.estimated_target_pos.T[self.idx_loc:], axis=1)
-        self.axs_error[0].plot(range(self.idx_loc, self.count), pos_err, label="$|| p - \hat{p} ||$")
+    def _initialize_error_figures(self):
+        fig, axs = plt.subplots(2, 2)
+        self.fig = fig
+        self.ax_animation = axs[0][0]
+        axs_error = np.insert(axs[1], 0, axs[0][1])
 
-        # self.axs_error[1].plot(self.real_r, label="Real r")
-        # self.axs_error[2].plot(range(1, len(self.real_r)), np.diff(self.real_r), label="Real $\dot{r}$")
+        self.r_error = self.real_r - self.measured_r
+        self.pos_err = np.linalg.norm(self.target_pos.T[self.idx_loc:] - self.estimated_target_pos.T[self.idx_loc:],
+                                      axis=1)
+        self.r_dot_error = np.insert(np.diff(self.real_r) - np.diff(self.measured_r), 0, None)
+        self.line_r_error, = axs[1][0].plot(self.r_error, label="Measurement error in r")
+        self.line_pos_error, = axs[0][1].plot(range(self.idx_loc, self.count), self.pos_err, label="$||p - \hat{p}||$")
+        self.line_r_dot_error, = axs[1][1].plot(range(self.count), self.r_dot_error, label="Measurement error in dr")
 
-        self.axs_error[1].plot(self.real_r - self.measured_r, label="Measurement error in r")
-        self.axs_error[2].plot(range(1, len(self.measured_r)), np.diff(self.real_r) - np.diff(self.measured_r),
-                               label="Measurement error in $\dot{r}$")
-
-        self.axs_error[0].legend()
-        self.axs_error[0].set_xlim(0)
-        self.axs_error[1].legend()
-        self.axs_error[1].set_xlim(0)
-        self.axs_error[2].legend()
-        self.axs_error[2].set_xlim(0)
+        axs[0][1].legend()
+        axs[0][1].set_xlim(0)
+        axs[0][1].set_xlabel("Time step")
+        axs[1][0].legend()
+        axs[1][0].set_xlim(0)
+        axs[1][0].set_xlabel("Time step")
+        axs[1][1].legend()
+        axs[1][1].set_xlim(0)
+        axs[1][1].set_xlabel("Time step")
