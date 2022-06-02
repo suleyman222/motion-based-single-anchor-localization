@@ -48,8 +48,8 @@ class BaseLocalization(ABC):
         measurements_1 = measurements_reshaped[0]
         measurements_2 = measurements_reshaped[1]
 
-        real_r = self.robot_system.real_r
-        measured_r = self.robot_system.measured_r if self.robot_system.noise else None
+        real_r = np.array(self.robot_system.real_r)
+        measured_r = np.array(self.robot_system.measured_r)
 
         ani = Animator(title, self.count, self.idx_loc, anchor_positions, target_positions, estimated_positions,
                        measurements_1, measurements_2, real_r, measured_r, save, plot_error_figures)

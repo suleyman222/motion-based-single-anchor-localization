@@ -78,9 +78,7 @@ class TwoRobotSystem:
 
         # Measurements
         self.real_r = []
-
-        if self.noise:
-            self.measured_r = []
+        self.measured_r = []
 
         if anchor_robot.dt != target_robot.dt:
             print("Target and anchor dt are different!")
@@ -108,5 +106,5 @@ class TwoRobotSystem:
 
         if self.noise:
             r += np.random.normal(0, self.r_std)
-            self.measured_r.append(r)
+        self.measured_r.append(r)
         return r
