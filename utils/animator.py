@@ -1,4 +1,5 @@
 import matplotlib
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.widgets import Slider
 from itertools import chain
@@ -6,18 +7,26 @@ import matplotlib.animation
 
 
 class Animator:
-    def __init__(self, loc, title: str, save=False):
+    def __init__(self, loc, title: str, save=False, plot_error_figures=False):
+        self.plot_error_figures = plot_error_figures
         self.save = save
         self.loc = loc
 
-        self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111)
-        self.ax.set_title(title)
-        self.line_anchor, = self.ax.plot([], [], 'm-', ms=10, label="Anchor robot path")
-        self.line_actual_target, = self.ax.plot([], [], 'b-', ms=10, label="Actual target path")
-        self.line_measured1, = self.ax.plot([], [], 'g--', ms=10, label="Measured target path")
-        self.line_measured2, = self.ax.plot([], [], 'y--', ms=10, label="Measured target path")
-        self.line_estimated, = self.ax.plot([], [], 'r-', ms=10, label="Estimated target path")
+        if plot_error_figures:
+            fig, axs = plt.subplots(2, 2)
+            self.fig = fig
+            self.ax_animation = axs[0][0]
+            self.axs_error = np.insert(axs[1], 0, axs[0][1])
+        else:
+            self.fig = plt.figure()
+            self.ax_animation = self.fig.add_subplot(111)
+
+        self.ax_animation.set_title(title)
+        self.line_anchor, = self.ax_animation.plot([], [], 'm-', ms=10, label="Anchor robot path")
+        self.line_actual_target, = self.ax_animation.plot([], [], 'b-', ms=10, label="Actual target path")
+        self.line_measured1, = self.ax_animation.plot([], [], 'g--', ms=10, label="Measured target path 1")
+        self.line_measured2, = self.ax_animation.plot([], [], 'y--', ms=10, label="Measured target path 2")
+        self.line_estimated, = self.ax_animation.plot([], [], 'r-', ms=10, label="Estimated target path")
 
         axamp = plt.axes([0.25, .03, 0.50, 0.02])
         self.slider = Slider(axamp, 'Timestep', 0, self.loc.count, valinit=0, valstep=1)
@@ -42,9 +51,9 @@ class Animator:
         max_y = max(chain(self.anchor_y, self.target_y, self.estimated_y, self.measured1_y, self.measured2_y))
         min_x = min(chain(self.anchor_x, self.target_x, self.estimated_x, self.measured1_x, self.measured2_x))
         min_y = min(chain(self.anchor_y, self.target_y, self.estimated_y, self.measured1_y, self.measured2_y))
-        self.ax.set_xlim(min_x, max_x)
-        self.ax.set_ylim(min_y, max_y)
-        self.ax.legend()
+        self.ax_animation.set_xlim(min_x, max_x)
+        self.ax_animation.set_ylim(min_y, max_y)
+        self.ax_animation.legend()
 
         # call update function on slider value change
         self.slider.on_changed(self.update_slider)
@@ -54,6 +63,8 @@ class Animator:
                                                  save_count=self.loc.count)
         if self.save:
             ani.save('ani.gif', 'pillow')
+        if self.plot_error_figures:
+            self.error_figures()
         plt.show()
 
     def animate(self, frame):
@@ -87,3 +98,19 @@ class Animator:
         else:
             # user clicked somewhere else on canvas = unpause
             self.is_manual = False
+
+    def error_figures(self):
+        pos_err = np.linalg.norm(self.loc.robot_system.all_target_positions[self.loc.idx_loc:] - self.loc.estimated_positions[self.loc.idx_loc:], axis=1)
+        self.axs_error[0].plot(pos_err, label="$|| p - \hat{p} ||$")
+        self.axs_error[1].plot(self.loc.robot_system.real_r, label="Real r")
+        a = np.diff(self.loc.robot_system.real_r)
+        self.axs_error[2].plot(np.diff(self.loc.robot_system.real_r), label="Real $\dot{r}$")
+
+        if self.loc.robot_system.noise:
+            self.axs_error[2].plot(np.diff(self.loc.robot_system.measured_r), label="Measured $\dot{r}$")
+            self.axs_error[1].plot(self.loc.robot_system.measured_r, label="Measured r")
+        self.axs_error[0].legend()
+        self.axs_error[1].legend()
+        self.axs_error[2].legend()
+
+

@@ -1,8 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
 from typing import Optional
-
-import matplotlib.axes
 import numpy as np
 
 
@@ -93,28 +91,22 @@ class TwoRobotSystem:
         self.all_anchor_positions.append(self.anchor_robot.pos)
         self.all_target_positions.append(self.target_robot.pos)
 
-    def get_measurement(self):
-        # TODO: Change to return v_anchor, v_target and r
+    def get_v_measurement(self):
+        # TODO: Change to return v_anchor, v_target
         v_tracked_robot = self.target_robot.vel
-        v_anchor_robot = self.anchor_robot.vel if self.anchor_robot else np.zeros(2)
-
+        v_anchor_robot = self.anchor_robot.vel
         v = v_tracked_robot - v_anchor_robot
+
+        if self.noise:
+            v = v + np.random.normal(0, self.v_std)
+            # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
+        return v
+
+    def get_r_measurement(self):
         r = np.linalg.norm(self.target_robot.pos - self.anchor_robot.pos)
         self.real_r.append(r)
 
         if self.noise:
             r += np.random.normal(0, self.r_std)
             self.measured_r.append(r)
-            v = v + np.random.normal(0, self.v_std)
-            # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
-        return r, v
-
-    def plot_distances(self, ax_r: matplotlib.axes.Axes, ax_r_dot: matplotlib.axes.Axes):
-        ax_r.plot(self.real_r, label="Real r")
-        ax_r_dot.plot(np.diff(self.real_r), label="Real $\dot{r}$")
-
-        if self.noise:
-            ax_r_dot.plot(np.diff(self.measured_r), label="Measured $\dot{r}$")
-            ax_r.plot(self.measured_r, label="Measured r")
-        ax_r.legend()
-        ax_r_dot.legend()
+        return r

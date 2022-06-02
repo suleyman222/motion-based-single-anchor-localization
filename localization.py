@@ -13,7 +13,7 @@ class BaseLocalization(ABC):
         self.robot_system = robot_system
         self.count = count
         self.dt = robot_system.dt
-        self.prev_r = np.linalg.norm(robot_system.target_robot.pos - robot_system.anchor_robot.pos)
+        self.prev_r = robot_system.get_r_measurement()
         self.idx_loc = 0
 
         # Every measurement we get two possible locations for the robot. The initial position is not available
@@ -38,8 +38,8 @@ class BaseLocalization(ABC):
         pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)] + self.robot_system.anchor_robot.pos
         return [pos1, pos2]
 
-    def animate_results(self, save, title):
-        ani = Animator(self, title, save)
+    def animate_results(self, save, title, plot_error_figures):
+        ani = Animator(self, title, save, plot_error_figures)
         ani.run()
 
     @abstractmethod
@@ -58,7 +58,8 @@ class PositionTracking(BaseLocalization):
     def run(self):
         for i in range(1, self.count):
             self.robot_system.update()
-            measured_r, measured_v = self.robot_system.get_measurement()
+            measured_r = self.robot_system.get_r_measurement()
+            measured_v = self.robot_system.get_v_measurement()
             measurement1, measurement2 = self.calculate_possible_positions(measured_r, measured_v)
             self.measured_positions[i] = [measurement1, measurement2]
 
@@ -81,7 +82,7 @@ class MotionBasedLocalization(BaseLocalization):
     def __init__(self, robot_system: TwoRobotSystem, count=50):
         super().__init__(robot_system, count)
         self.localized = False
-        self.prev_v = robot_system.target_robot.vel - robot_system.anchor_robot.vel
+        self.prev_v = robot_system.get_v_measurement()
 
         # TODO: noise and filtering
 
@@ -99,7 +100,8 @@ class MotionBasedLocalization(BaseLocalization):
 
         for i in range(1, self.count):
             self.robot_system.update()
-            measured_r, measured_v = self.robot_system.get_measurement()
+            measured_r = self.robot_system.get_r_measurement()
+            measured_v = self.robot_system.get_v_measurement()
             measurement1, measurement2 = self.calculate_possible_positions(measured_r, measured_v)
             self.measured_positions[i] = [measurement1, measurement2]
 
@@ -110,8 +112,8 @@ class MotionBasedLocalization(BaseLocalization):
                 similarity = Util.cos_similarity(self.prev_v, measured_v)
                 if similarity < .99:
                     self.localized = True
-                    prev1 = self.measured_positions[i][0]
-                    prev2 = self.measured_positions[i][1]
+                    prev1 = self.measured_positions[i-1][0]
+                    prev2 = self.measured_positions[i-1][1]
 
                     max_pos = find_max_similarity([prev1, prev2], [measurement1, measurement2])
                     self.estimated_positions[i] = max_pos
@@ -134,7 +136,7 @@ def run_motion_based_localization():
     #      [1, 2], [1, 2]]
     # cr = ControlledRobot2D(u, dt=dt, init_pos=p0)
     # cr = ConstantAccelerationRobot2D(p0, [.1, .1], [.1, .1], dt=dt)
-    cr = RandomAccelerationRobot2D(p0, [1, 1], dt, ax_noise=0, ay_noise=0)
+    cr = RandomAccelerationRobot2D(p0, [1, 1], dt, ax_noise=1.5, ay_noise=1)
     cr_anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], dt, ax_noise=1, ay_noise=1.5)
 
     system = TwoRobotSystem(None, cr, noise=is_noisy, r_std=r_std, v_std=v_std)
@@ -149,7 +151,7 @@ def run_motion_based_localization():
     rmse_meas = Util.rmse(loc.chosen_measurements[loc.idx_loc:], loc.robot_system.all_target_positions[loc.idx_loc:])
     print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
 
-    loc.animate_results(save=False, title=title)
+    loc.animate_results(save=False, title=title, plot_error_figures=True)
 
 
 def run_position_tracking():
