@@ -38,8 +38,21 @@ class BaseLocalization(ABC):
         pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)] + self.robot_system.anchor_robot.pos
         return [pos1, pos2]
 
-    def animate_results(self, save, title, plot_error_figures):
-        ani = Animator(self, title, save, plot_error_figures)
+    def animate_results(self, title, save=False, plot_error_figures=False):
+        target_positions = self.robot_system.all_target_positions.T
+        anchor_positions = self.robot_system.all_anchor_positions.T
+        estimated_positions = self.estimated_positions.T
+
+        measurements_t = self.measured_positions[:].T
+        measurements_reshaped = np.stack((measurements_t[0], measurements_t[1]), axis=1)
+        measurements_1 = measurements_reshaped[0]
+        measurements_2 = measurements_reshaped[1]
+
+        real_r = self.robot_system.real_r
+        measured_r = self.robot_system.measured_r if self.robot_system.noise else None
+
+        ani = Animator(title, self.count, self.idx_loc, anchor_positions, target_positions, estimated_positions,
+                       measurements_1, measurements_2, real_r, measured_r, save, plot_error_figures)
         ani.run()
 
     @abstractmethod
@@ -151,7 +164,7 @@ def run_motion_based_localization():
     rmse_meas = Util.rmse(loc.chosen_measurements[loc.idx_loc:], loc.robot_system.all_target_positions[loc.idx_loc:])
     print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
 
-    loc.animate_results(save=False, title=title, plot_error_figures=True)
+    loc.animate_results(title=title, save=False, plot_error_figures=True)
 
 
 def run_position_tracking():
@@ -202,7 +215,7 @@ def run_position_tracking():
     rmse_meas = Util.rmse(loc.chosen_measurements, loc.robot_system.all_target_positions)
     print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
 
-    loc.animate_results(save=False, title=title)
+    loc.animate_results(title=title, save=False)
 
 
 if __name__ == '__main__':
