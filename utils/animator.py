@@ -81,12 +81,13 @@ class Animator:
         self.line_measured1.set_data(self.measured_target_pos_1[0][:val], self.measured_target_pos_1[1][:val])
         self.line_measured2.set_data(self.measured_target_pos_2[0][:val], self.measured_target_pos_2[1][:val])
 
-        self.line_r_error.set_data(range(val), self.r_error[:val])
-        self.line_r_dot_error.set_data(range(val), self.r_dot_error[:val])
-        if val >= self.idx_loc:
-            self.line_pos_error.set_data(range(self.idx_loc, val), self.pos_err[:val - self.idx_loc])
-        else:
-            self.line_pos_error.set_data([], [])
+        if self.plot_error_figures:
+            self.line_r_error.set_data(range(val), self.r_error[:val])
+            self.line_r_dot_error.set_data(range(val), self.r_dot_error[:val])
+            if val >= self.idx_loc:
+                self.line_pos_error.set_data(range(self.idx_loc, val), self.pos_err[:val - self.idx_loc])
+            else:
+                self.line_pos_error.set_data([], [])
 
         self.fig.canvas.draw_idle()
 
