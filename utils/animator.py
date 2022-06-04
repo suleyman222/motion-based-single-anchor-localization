@@ -83,7 +83,9 @@ class Animator:
 
         if self.plot_error_figures:
             self.line_r_error.set_data(range(val), self.r_error[:val])
-            self.line_r_dot_error.set_data(range(val), self.r_dot_error[:val])
+            self.line_dr_error.set_data(range(val), self.dr_error[:val])
+            self.line_dr.set_data(range(val), self.dr[:val])
+            self.line_dr_measured.set_data(range(val), self.measured_dr[:val])
             if val >= self.idx_loc:
                 self.line_pos_error.set_data(range(self.idx_loc, val), self.pos_err[:val - self.idx_loc])
             else:
@@ -105,22 +107,27 @@ class Animator:
         fig, axs = plt.subplots(2, 2)
         self.fig = fig
         self.ax_animation = axs[0][0]
-        axs_error = np.insert(axs[1], 0, axs[0][1])
 
         self.r_error = self.real_r - self.measured_r
+        self.dr = np.insert(np.diff(self.real_r), 0, None)
+        self.measured_dr = np.insert(np.diff(self.measured_r), 0, None)
+        self.dr_error = np.insert(self.dr[1:] - self.measured_dr[1:], 0, None)
         self.pos_err = np.linalg.norm(self.target_pos.T[self.idx_loc:] - self.estimated_target_pos.T[self.idx_loc:],
                                       axis=1)
-        self.r_dot_error = np.insert(np.diff(self.real_r) - np.diff(self.measured_r), 0, None)
+
         self.line_r_error, = axs[1][0].plot(self.r_error, label="Measurement error in r")
         self.line_pos_error, = axs[0][1].plot(range(self.idx_loc, self.count), self.pos_err, label="$||p - \hat{p}||$")
-        self.line_r_dot_error, = axs[1][1].plot(range(self.count), self.r_dot_error, label="Measurement error in dr")
+        self.line_dr_error, = axs[1][1].plot(range(self.count), self.dr_error, label="Measurement error in dr")
+        self.line_dr_measured, = axs[1][1].plot(range(self.count), self.measured_dr, label="Measured dr")
+        self.line_dr, = axs[1][1].plot(range(self.count), self.dr, label="Real dr")
 
-        axs[0][1].legend()
+        axs[0][1].set_title("Error in position estimate $||p - \hat{p}||$")
         axs[0][1].set_xlim(0)
         axs[0][1].set_xlabel("Time step")
-        axs[1][0].legend()
+        axs[1][0].set_title("Noise in r")
         axs[1][0].set_xlim(0)
         axs[1][0].set_xlabel("Time step")
         axs[1][1].legend()
+        axs[1][1].set_title("Plots of change of r (dr)")
         axs[1][1].set_xlim(0)
         axs[1][1].set_xlabel("Time step")
