@@ -2,7 +2,8 @@ import copy
 from abc import ABC, abstractmethod
 import filterpy.common
 import numpy as np
-from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D, ControlledRobot2D, TwoRobotSystem
+from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D, ControlledRobot2D, TwoRobotSystem, \
+    RotatingRobot2D
 from utils import Util
 from utils.animator import Animator
 
@@ -22,17 +23,30 @@ class BaseLocalization(ABC):
         self.chosen_measurements[0] = [None, None]
         self.measured_positions[0] = [[None, None], [None, None]]
 
+        self.filtered_dr = []
+
         self.estimated_positions = np.zeros((count, 2))
 
     def calculate_possible_positions(self, r, v):
-        dr = (r - self.prev_r) / self.dt
-        # TODO: How do we update prev_r?
-        # self.prev_r = np.linalg.norm(estimated_pos)
+        prev_rs = self.robot_system.measured_r
+        if len(self.robot_system.measured_r) > 11:
+            dr = (0.03846*r + 0.03147*prev_rs[-2] + 0.02448*prev_rs[-3] + 0.01748*prev_rs[-4] + 0.01049*prev_rs[-5]
+              + 0.0035*prev_rs[-6] - 0.0035*prev_rs[-7] - 0.01049*prev_rs[-8] - 0.01748*prev_rs[-9] -
+              0.02448*prev_rs[-10] - 0.03147*prev_rs[-11] - 0.03846*prev_rs[-12]) / self.dt
+        elif len(self.robot_system.measured_r) > 2:
+            dr = (0.5*r + 0*prev_rs[-2] - .5*prev_rs[-3]) / self.dt
+            # dr = (0.2*r + 0.1*prev_rs[-2] - 0*prev_rs[-3] - 0.1*prev_rs[-4] - 0.2*prev_rs[-5]) / self.dt
+            # dr = (0.14286*r + 0.08571*prev_rs[-2] + 0.02857*prev_rs[-3] - 0.02857*prev_rs[-4] - 0.08571*prev_rs[-5]
+            #       - 0.14286*prev_rs[-6]) / self.dt
+        else:
+            dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+        self.filtered_dr.append(dr)
         self.prev_r = r
         s = np.linalg.norm(v)
         alpha = np.arctan2(v[1], v[0])
         theta = np.arccos(Util.clamp(dr / s, -1, 1))
 
+        r = prev_rs[-1]
         pos1 = [r * np.cos(alpha + theta), r * np.sin(alpha + theta)] + self.robot_system.anchor_robot.pos
         pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)] + self.robot_system.anchor_robot.pos
         return [pos1, pos2]
@@ -51,7 +65,8 @@ class BaseLocalization(ABC):
         measured_r = np.array(self.robot_system.measured_r)
 
         ani = Animator(title, self.count, self.idx_loc, anchor_positions, target_positions, estimated_positions,
-                       measurements_1, measurements_2, real_r, measured_r, save, plot_error_figures)
+                       measurements_1, measurements_2, real_r, measured_r, save, plot_error_figures,
+                       np.array(self.filtered_dr) * self.dt, np.linalg.norm(self.robot_system.measured_v, axis=1))
         ani.run()
 
     @abstractmethod
@@ -118,7 +133,7 @@ class MotionBasedLocalization(BaseLocalization):
 
             if self.localized:
                 # Compare measurements to moving average of previous positions
-                window_length = 5
+                window_length = 50
                 window = list(range(max(self.idx_loc, i-window_length), i))
                 prev_pos = np.mean(self.estimated_positions[window], axis=0)
                 # prev_pos = self.estimated_positions[i-1]
@@ -132,7 +147,7 @@ class MotionBasedLocalization(BaseLocalization):
                 self.estimated_positions[i] = closest_measurement
             else:
                 similarity = Util.cos_similarity(self.prev_v, measured_v)
-                if similarity < .99 and i > 1:
+                if similarity < .99 and i > 20:
                     self.localized = True
                     prev1 = self.measured_positions[i-1][0]
                     prev2 = self.measured_positions[i-1][1]
@@ -151,22 +166,19 @@ class MotionBasedLocalization(BaseLocalization):
         self.robot_system.all_target_positions = np.array(self.robot_system.all_target_positions)
 
 
-def run_motion_based_localization():
-    p0 = [3., 2.]
+def run_rotating_robot():
+    p0 = [0., -2.]
     v0 = [1, 1]
-    u = [[1, 0]] * 100 + [[1, 2]] * 100
-    dt = .1
+    count = 400
     is_noisy = True
-    r_std = .01
+    r_std = .1
     v_std = 0
-    target_ax_std = 1.5
-    target_ay_std = 1
-    # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
-    #      [1, 2], [1, 2]]
-    # target = ControlledRobot2D(u, dt=dt, init_pos=p0)
 
-    target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
-    # anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], dt, ax_noise=1, ay_noise=1.5)
+    target_ax_std = .05
+    target_ay_std = .05
+    dt = .5
+
+    target = RotatingRobot2D(init_pos=p0, init_vel=v0, dt=dt)
 
     system = TwoRobotSystem(None, target, noise=is_noisy, r_std=r_std, v_std=v_std)
 
@@ -177,13 +189,21 @@ def run_motion_based_localization():
                      [0, dt ** 4 * ay_var / 4, 0, dt ** 3 * ay_var / 2],
                      [dt ** 3 * ax_var / 2, 0, dt ** 2 * ax_var, 0],
                      [0, dt ** 3 * ay_var / 2, 0, dt ** 2 * ay_var]])
-    kf.P *= copy.deepcopy(kf.Q)
 
-    # kf.R = np.array([[23424.51598114,  9877.72176729], [9877.72176729,  5403.0224787]])
-    # for r_std = 0.1
-    kf.R = np.array([[2912.56428837, -1857.63133772], [-1857.63133772, 10249.59328298]])
+    # r_std = .1
+    kf.R = np.array([[38.43291417,  9.34092651],[9.34092651, 46.58549306]])
 
-    loc = MotionBasedLocalization(system, 1000, kf)
+    # r_std = .1, dt = 5, v = .1
+    # kf.R = np.array([[ 2.98480922, -3.00448956], [-3.00448956,  3.64202692]])
+
+    # r_std = 1.
+    # kf.R = np.array([[164.48873931, -96.56060999], [-96.56060999, 97.72653154]])
+
+    kf.P = np.zeros((4, 4))
+    kf.P[:2, :2] = copy.deepcopy(kf.R)
+    kf.P[2, 2] = v_std
+    kf.P[3, 3] = v_std
+    loc = MotionBasedLocalization(system, count, kf)
     loc.run()
 
     rmse_est = Util.rmse(loc.estimated_positions[loc.idx_loc:], system.all_target_positions[loc.idx_loc:])
@@ -197,81 +217,107 @@ def run_motion_based_localization():
     loc.animate_results(title=title, save=False, plot_error_figures=True)
 
 
-def run_position_tracking():
-    count = 1000
-    pos0 = [3., 2.]
+
+def run_motion_based_localization():
+    p0 = [3., 2.]
     v0 = [1, 1]
-    dt = .1
-    r_std = .01
-    v_std = 0
-    is_noisy = True
+    # u = [[1, 0]] * 100 + [[1, 2]] * 100 + [[-1, 0]] * 100
 
-    ax_std = .4
-    ay_std = .7
+    # u = [[1., 0.]] * 20 + [[1., 2.]] * 20 + [[-2, 1]] * 300
+    u = [[1., 0.]] * 50 + [[1., 2.]] * 20 + [[-2, 1]] * 50 + [[-1, -1]] * 100 + [[0, 2]] * 50
 
-    u = [[1, 0]] * 100 + [[1, 2]] * 100
-    # u = [[1, 0], [1, 0], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2], [1, 2],
-    #      [1, 2], [1, 2]]
+    # Shows that noise increases the further the robot gets
+    # u = [[1., 0.]] * 25 + [[1., 2.]] * 25 + [[2, 1]] * 100 + [[0, 1]] * 1000 + [[1, 0]] * 100 +  [[0, -1]] * 1000
 
-    # anchor = RandomAccelerationRobot2D([0, 0], [1, 1], dt, ax_noise=.2, ay_noise=-.1)
-    # target = RandomAccelerationRobot2D(pos0, [1, 1], dt, ax_noise=ax_std, ay_noise=ay_std)
-    target = ControlledRobot2D(u, dt, pos0)
+    # Shows that dr has a lot more impact on bigger r
+    # u = [[1., 0.]] * 25 + [[1., 2.]] * 25 + [[1., -2.]] * 25 + [[1., 0.]] * 1000
+    # u = [[1., -2.]] * 10 + [[-1., -2.]] * 10 + [[0., -1.]] * 1000
+
     count = len(u)
-    system = TwoRobotSystem(None, target, noise=is_noisy, v_std=v_std, r_std=r_std)
+    dt = .5
+    is_noisy = True
+    r_std = .1
+    v_std = 0
+    target_ax_std = .05
+    target_ay_std = .05
+    target = ControlledRobot2D(u, dt=dt, init_pos=p0, init_vel=u[0])
+
+    # target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
+    # anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], dt, ax_noise=1, ay_noise=1.5)
+
+    system = TwoRobotSystem(None, target, noise=is_noisy, r_std=r_std, v_std=v_std)
 
     kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
-    # kf.Q = filterpy.common.Q_discrete_white_noise(2, dt=dt, var=ax_std ** 2, block_size=2, order_by_dim=False)
+    ax_var = target_ax_std ** 2
+    ay_var = target_ay_std ** 2
+    kf.Q = np.array([[dt ** 4 * ax_var / 4, 0, dt ** 3 * ax_var / 2, 0],
+                     [0, dt ** 4 * ay_var / 4, 0, dt ** 3 * ay_var / 2],
+                     [dt ** 3 * ax_var / 2, 0, dt ** 2 * ax_var, 0],
+                     [0, dt ** 3 * ay_var / 2, 0, dt ** 2 * ay_var]])
 
-    ax_var = ax_std**2
-    ay_var = ay_std**2
-    kf.Q = np.array([[dt**4 * ax_var / 4, 0, dt**3 * ax_var / 2, 0],
-                     [0, dt**4 * ay_var / 4, 0, dt**3 * ay_var / 2],
-                     [dt**3 * ax_var / 2, 0, dt**2 * ax_var, 0],
-                     [0, dt**3 * ay_var/2, 0, dt**2 * ay_var]])
-    kf.P *= copy.deepcopy(kf.Q)
+    # for r_std = 0.01
+    # kf.R = np.array([[23424.51598114,  9877.72176729], [9877.72176729,  5403.0224787]])
+    # kf.R = np.array([[4.16272827, 2.71208042], [2.71208042, 4.93606463]])
 
-    kf.x = pos0 + v0
-    kf.R *= (r_std ** 2 + v_std ** 2) * 100000  # TODO: this is wrong, needs to change
+    # for r_std = 0.1
+    # kf.R = np.array([[2912.56428837, -1857.63133772], [-1857.63133772, 10249.59328298]])
+    # kf.R = np.array([[256.27401329, 220.00956481], [220.00956481, 296.36179637]])
+    # kf.R = np.array([[3.80227355, 2.00813648], [2.00813648, 4.85322846]])
 
-    loc = PositionTracking(None, robot_system=system, count=count)
+    # Controlled robot r=.1, dt=.5
+    # kf.R = np.array([[586.34069508, -194.27242372], [-194.27242372,  85.37535859]])
+
+    # dt = .5,  r = 1
+    # kf.R = np.array([[4849.90968636, -1508.56463433], [-1508.56463433,  2064.63924781]])
+
+    # Controlled Robot r=.1, dt=1
+    # kf.R = np.array([[48.85914417,  1.39985785], [1.39985785, 12.77227353]])
+
+    kf.P = np.zeros((4, 4))
+    kf.P[:2, :2] = copy.deepcopy(kf.R)
+    kf.P[2, 2] = .01
+    kf.P[3, 3] = .01
+    loc = MotionBasedLocalization(system, count, kf)
     loc.run()
 
-    rmse_est = Util.rmse(loc.estimated_positions, loc.robot_system.all_target_positions)
-
+    rmse_est = Util.rmse(loc.estimated_positions[loc.idx_loc:], system.all_target_positions[loc.idx_loc:])
     trunc_rmse_est = ['%.4f' % val for val in rmse_est]
-    title = f"Position Tracking, dt = {dt}, RMSE = {trunc_rmse_est}"
+    title = f"Motion-based localization (unknown initial position), dt = {dt}, RMSE = {trunc_rmse_est}"
     if is_noisy:
         title += f", $\sigma_r={r_std}$, $\sigma_v$ = {v_std}"
-    rmse_meas = Util.rmse(loc.chosen_measurements, loc.robot_system.all_target_positions)
+    rmse_meas = Util.rmse(loc.chosen_measurements[loc.idx_loc:], loc.robot_system.all_target_positions[loc.idx_loc:])
     print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
 
-    loc.animate_results(title=title, save=False)
+    loc.animate_results(title=title, save=False, plot_error_figures=True)
 
 
 def determine_r_matrix():
-    count = 10000
-    p0 = [3., 2.]
+    u = [[1., 0.]] * 25 + [[1., 2.]] * 25 + [[-2, 1]] * 25 + [[-1, -1]] * 50 + [[0, 2]] * 25
+    count = 400
+    p0 = [0., -2.]
     v0 = [1, 1]
     dt = .1
     is_noisy = True
     r_std = .1
     v_std = 0
     target_ax_std = 1.5
-    target_ay_std = 1
+    target_ay_std = 1.0
 
     reps = 1000
     q = np.array([[0., 0.], [0., 0.]])
     for i in range(reps):
-        target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
+        # target = ControlledRobot2D(u, dt=dt, init_pos=p0, init_vel=u[0])
+        target = RotatingRobot2D(dt=dt, init_pos=p0, init_vel=u[0])
+        # target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
         system = TwoRobotSystem(None, target, noise=is_noisy, r_std=r_std, v_std=v_std)
         loc = MotionBasedLocalization(system, count)
         loc.run()
 
         if loc.localized:
             error = loc.chosen_measurements[loc.idx_loc:] - system.all_target_positions[loc.idx_loc:]
-            e_nx = np.mean(error[:][0]**2)
-            e_nx_ny = np.mean(error[:][0] * error[:][1])
-            e_ny = np.mean(error[:][1]**2)
+            e_nx = np.mean(error[:, 0]**2)
+            e_nx_ny = np.mean(error[:, 0] * error[:, 1])
+            e_ny = np.mean(error[:, 1]**2)
             q += np.array([[e_nx, e_nx_ny], [e_nx_ny, e_ny]])
         else:
             reps -= 1
@@ -281,6 +327,8 @@ def determine_r_matrix():
 
 
 if __name__ == '__main__':
-    run_motion_based_localization()
+    np.seterr(all='raise')
+    # run_motion_based_localization()
+    run_rotating_robot()
     # run_position_tracking()
-    # print(determine_e_matrix())
+    # print(determine_r_matrix())

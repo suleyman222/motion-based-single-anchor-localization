@@ -51,14 +51,34 @@ class RandomAccelerationRobot2D(BaseRobot2D):
 class ControlledRobot2D(BaseRobot2D):
     def __init__(self, control_input,  dt=1., init_pos=None, init_vel=None):
         super().__init__(init_pos, init_vel, dt)
-        self.localized = False
         self.control_input = copy.deepcopy(control_input)
-        self.prev_r = np.linalg.norm(self.pos)
 
     def update(self):
         if self.control_input:
             self.vel = np.array(self.control_input.pop(0))
             self.pos = self.pos + np.dot(self.vel, self.dt)
+
+
+class RotatingRobot2D(BaseRobot2D):
+    def __init__(self, init_pos=None, init_vel=None, dt=1.):
+        # TODO: these func params dont do anything
+        super().__init__(init_pos, init_vel, dt)
+
+        self.speed = .1  # [m/s]
+        self.yaw_rate = .15
+        self.vel = [self.speed * np.cos(self.yaw_rate), self.speed * np.sin(self.yaw_rate)]
+        self.i = 0
+
+    def update(self):
+        self.i += 1
+        if self.i < 50:
+            self.vel = [1 * self.speed, 0]
+            self.pos = self.pos + np.dot(self.vel, self.dt)
+            return
+
+        self.vel = [self.speed * np.cos(self.yaw_rate), self.speed * np.sin(self.yaw_rate)]
+        self.yaw_rate += .01
+        self.pos = self.pos + np.dot(self.vel, self.dt)
 
 
 class TwoRobotSystem:
@@ -79,6 +99,7 @@ class TwoRobotSystem:
         # Measurements
         self.real_r = []
         self.measured_r = []
+        self.measured_v = []
 
         if anchor_robot.dt != target_robot.dt:
             print("Target and anchor dt are different!")
@@ -98,6 +119,7 @@ class TwoRobotSystem:
         if self.noise:
             v = v + np.random.normal(0, self.v_std)
             # v = [v[0] + self.v_std * np.random.randn(), v[1] + 1.5 * self.v_std * np.random.randn()]
+        self.measured_v.append(v)
         return v
 
     def get_r_measurement(self):
@@ -105,6 +127,27 @@ class TwoRobotSystem:
         self.real_r.append(r)
 
         if self.noise:
+            path_loss_exp = 2
+            p_0 = -52
+            p_ij = p_0 - 10 * path_loss_exp * np.log10(r)
+            sigma_rssi = 6  # [dB]
+
+            M = 100
+            noisy_rssi = 0
+            for i in range(M):
+                noisy_rssi += p_ij + np.random.normal(0, sigma_rssi)
+            noisy_rssi /= M
+
+            noisy_distance = 10**((-52 - noisy_rssi) / (10 * path_loss_exp))
+            # print(r, noisy_distance)
+
+            # eta = 2
+            # M = 20
+            # sigma_k = 3
+            # std = np.sqrt(r**2 * sigma_k**2 * (np.log(10) / (10 * eta))**2 / M)
+            # print(r, std)
             r += np.random.normal(0, self.r_std)
+
+            # r = noisy_distance
         self.measured_r.append(r)
         return r

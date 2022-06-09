@@ -8,7 +8,9 @@ import matplotlib.animation
 class Animator:
     def __init__(self, title: str, count, idx_loc, anchor_pos, target_pos, estimated_target_pos, measured_target_pos_1,
                  measured_target_pos_2, real_r=None, measured_r=None, save=False,
-                 plot_error_figures=False):
+                 plot_error_figures=False, used_dr=None, speed=None):
+        self.speed = speed
+        self.used_dr = used_dr
         self.plot_error_figures = plot_error_figures
         self.save = save
         self.idx_loc = idx_loc
@@ -30,14 +32,15 @@ class Animator:
 
         self.line_anchor, = self.ax_animation.plot(anchor_pos[0], anchor_pos[1], 'm-',
                                                    ms=10, label="Anchor robot path")
-        self.line_actual_target, = self.ax_animation.plot(target_pos[0], target_pos[1], 'b-',
-                                                          ms=10, label="Actual target path")
+
         self.line_measured1, = self.ax_animation.plot(measured_target_pos_1[0], measured_target_pos_1[1],
                                                       'g--', ms=10, label="Measured target path 1")
         self.line_measured2, = self.ax_animation.plot(measured_target_pos_2[0], measured_target_pos_2[1],
                                                       'y--', ms=10, label="Measured target path 2")
         self.line_estimated, = self.ax_animation.plot(estimated_target_pos[0], estimated_target_pos[1],
                                                       'r-', ms=10, label="Estimated target path")
+        self.line_actual_target, = self.ax_animation.plot(target_pos[0], target_pos[1], 'b-',
+                                                          ms=10, label="Actual target path")
 
         self.fig.suptitle(title)
         self.ax_animation.legend()
@@ -82,9 +85,10 @@ class Animator:
         self.line_measured2.set_data(self.measured_target_pos_2[0][:val], self.measured_target_pos_2[1][:val])
 
         if self.plot_error_figures:
-            self.line_r_error.set_data(range(val), self.r_error[:val])
+            self.line_r_error.set_data(range(val), self.speed[:val])
             self.line_dr_error.set_data(range(val), self.dr_error[:val])
             self.line_dr.set_data(range(val), self.dr[:val])
+            self.line_filtered_dr_error.set_data(range(val), self.filtered_dr_error[:val])
             self.line_dr_measured.set_data(range(val), self.measured_dr[:val])
             if val >= self.idx_loc:
                 self.line_pos_error.set_data(range(self.idx_loc, val), self.pos_err[:val - self.idx_loc])
@@ -108,23 +112,26 @@ class Animator:
         self.fig = fig
         self.ax_animation = axs[0][0]
 
-        self.r_error = self.real_r - self.measured_r
+        self.speed = self.speed
         self.dr = np.insert(np.diff(self.real_r), 0, None)
         self.measured_dr = np.insert(np.diff(self.measured_r), 0, None)
-        self.dr_error = np.insert(self.dr[1:] - self.measured_dr[1:], 0, None)
+        self.dr_error = np.insert(np.abs(self.dr[1:] - self.measured_dr[1:]), 0, None)
+        self.filtered_dr_error = np.insert(np.abs(self.dr[1:] - self.used_dr), 0, None)
         self.pos_err = np.linalg.norm(self.target_pos.T[self.idx_loc:] - self.estimated_target_pos.T[self.idx_loc:],
                                       axis=1)
 
-        self.line_r_error, = axs[1][0].plot(self.r_error, label="Measurement error in r")
+        self.line_r_error, = axs[1][0].plot(self.speed, label="Noise in r")
         self.line_pos_error, = axs[0][1].plot(range(self.idx_loc, self.count), self.pos_err, label="$||p - \hat{p}||$")
-        self.line_dr_error, = axs[1][1].plot(range(self.count), self.dr_error, label="Measurement error in dr")
-        self.line_dr_measured, = axs[1][1].plot(range(self.count), self.measured_dr, label="Measured dr")
+        self.line_dr_error, = axs[1][1].plot(range(self.count), self.dr_error, label="Noise in Forward Difference")
+        self.line_filtered_dr_error, = axs[1][1].plot(range(self.count), self.filtered_dr_error, label="Noise in SG")
+        self.line_dr_measured, = axs[1][1].plot(range(self.count), self.measured_dr, label="Forward Difference")
         self.line_dr, = axs[1][1].plot(range(self.count), self.dr, label="Real dr")
+        axs[1][1].plot(range(self.count), np.insert(self.used_dr, 0, None), label="Savitzky-Golay filtered")
 
         axs[0][1].set_title("Error in position estimate $||p - \hat{p}||$")
         axs[0][1].set_xlim(0)
         axs[0][1].set_xlabel("Time step")
-        axs[1][0].set_title("Noise in r")
+        axs[1][0].set_title("Speed")
         axs[1][0].set_xlim(0)
         axs[1][0].set_xlabel("Time step")
         axs[1][1].legend()
