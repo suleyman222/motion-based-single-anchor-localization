@@ -2,9 +2,12 @@ import copy
 from abc import ABC, abstractmethod
 import filterpy.common
 import numpy as np
+from matplotlib import pyplot as plt
+
 from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D, ControlledRobot2D, TwoRobotSystem, \
     RotatingRobot2D
 from utils import Util
+from scipy.signal import _savitzky_golay
 from utils.animator import Animator
 
 
@@ -24,29 +27,38 @@ class BaseLocalization(ABC):
         self.measured_positions[0] = [[None, None], [None, None]]
 
         self.filtered_dr = []
+        self.filtered_r = [self.robot_system.measured_r[0]]
 
         self.estimated_positions = np.zeros((count, 2))
 
     def calculate_possible_positions(self, r, v):
         prev_rs = self.robot_system.measured_r
-        if len(self.robot_system.measured_r) > 11:
-            dr = (0.03846*r + 0.03147*prev_rs[-2] + 0.02448*prev_rs[-3] + 0.01748*prev_rs[-4] + 0.01049*prev_rs[-5]
-              + 0.0035*prev_rs[-6] - 0.0035*prev_rs[-7] - 0.01049*prev_rs[-8] - 0.01748*prev_rs[-9] -
-              0.02448*prev_rs[-10] - 0.03147*prev_rs[-11] - 0.03846*prev_rs[-12]) / self.dt
-        elif len(self.robot_system.measured_r) > 2:
-            dr = (0.5*r + 0*prev_rs[-2] - .5*prev_rs[-3]) / self.dt
-            # dr = (0.2*r + 0.1*prev_rs[-2] - 0*prev_rs[-3] - 0.1*prev_rs[-4] - 0.2*prev_rs[-5]) / self.dt
-            # dr = (0.14286*r + 0.08571*prev_rs[-2] + 0.02857*prev_rs[-3] - 0.02857*prev_rs[-4] - 0.08571*prev_rs[-5]
-            #       - 0.14286*prev_rs[-6]) / self.dt
-        else:
-            dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+        # if len(self.robot_system.measured_r) > 11:
+        #     dr = (0.03846 * r + 0.03147 * prev_rs[-2] + 0.02448 * prev_rs[-3] + 0.01748 * prev_rs[-4] + 0.01049 *
+        #           prev_rs[-5]
+        #           + 0.0035 * prev_rs[-6] - 0.0035 * prev_rs[-7] - 0.01049 * prev_rs[-8] - 0.01748 * prev_rs[-9] -
+        #           0.02448 * prev_rs[-10] - 0.03147 * prev_rs[-11] - 0.03846 * prev_rs[-12]) / self.dt
+        # elif len(self.robot_system.measured_r) > 2:
+        #     dr = (0.5 * r + 0 * prev_rs[-2] - .5 * prev_rs[-3]) / self.dt
+        #     # dr = (0.2*r + 0.1*prev_rs[-2] - 0*prev_rs[-3] - 0.1*prev_rs[-4] - 0.2*prev_rs[-5]) / self.dt
+        #     # dr = (0.14286*r + 0.08571*prev_rs[-2] + 0.02857*prev_rs[-3] - 0.02857*prev_rs[-4] - 0.08571*prev_rs[-5]
+        #     #       - 0.14286*prev_rs[-6]) / self.dt
+        # else:
+        #     dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+
+        dr = _savitzky_golay.savgol_filter(deriv=1, x=prev_rs,
+                                      window_length=min(len(prev_rs), 150), polyorder=1, delta=self.dt)[-1]
+            # dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
         self.filtered_dr.append(dr)
         self.prev_r = r
         s = np.linalg.norm(v)
         alpha = np.arctan2(v[1], v[0])
         theta = np.arccos(Util.clamp(dr / s, -1, 1))
 
-        r = prev_rs[-1]
+        self.filtered_r = _savitzky_golay.savgol_filter(deriv=0, x=prev_rs, window_length=min(len(prev_rs), 100),
+                                                        polyorder=1, delta=self.dt)
+        r = self.filtered_r[-1]
+
         pos1 = [r * np.cos(alpha + theta), r * np.sin(alpha + theta)] + self.robot_system.anchor_robot.pos
         pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)] + self.robot_system.anchor_robot.pos
         return [pos1, pos2]
@@ -162,6 +174,21 @@ class MotionBasedLocalization(BaseLocalization):
                     self.idx_loc = i
             self.prev_v = measured_v
 
+        plt.plot(_savitzky_golay.savgol_filter(deriv=1, x=self.robot_system.measured_r,
+                                                         window_length=100, polyorder=3, delta=self.dt), label="savgol")
+        plt.plot(self.filtered_dr, label="filtered dr")
+        plt.plot(np.insert(np.diff(self.robot_system.real_r), 0, None), label="real dr")
+        plt.legend()
+        plt.show()
+
+        plt.plot(self.robot_system.real_r, label="real_r")
+        plt.plot(self.filtered_r, label="filtered r")
+        plt.plot(self.robot_system.measured_r, label="measured_r")
+        plt.plot(_savitzky_golay.savgol_filter(deriv=0, x=self.robot_system.measured_r, window_length=100,
+                                               polyorder=1, delta=self.dt), label="savgol filtered r")
+        plt.legend()
+        plt.show()
+
         self.robot_system.all_anchor_positions = np.array(self.robot_system.all_anchor_positions)
         self.robot_system.all_target_positions = np.array(self.robot_system.all_target_positions)
 
@@ -169,13 +196,13 @@ class MotionBasedLocalization(BaseLocalization):
 def run_rotating_robot():
     p0 = [0., -2.]
     v0 = [1, 1]
-    count = 400
+    count = 600
     is_noisy = True
     r_std = .1
     v_std = 0
 
-    target_ax_std = .05
-    target_ay_std = .05
+    target_ax_std = .002
+    target_ay_std = .002
     dt = .5
 
     target = RotatingRobot2D(init_pos=p0, init_vel=v0, dt=dt)
@@ -191,13 +218,10 @@ def run_rotating_robot():
                      [0, dt ** 3 * ay_var / 2, 0, dt ** 2 * ay_var]])
 
     # r_std = .1
-    kf.R = np.array([[38.43291417,  9.34092651],[9.34092651, 46.58549306]])
+    # kf.R = np.array([[38.43291417,  9.34092651], [9.34092651, 46.58549306]])
 
-    # r_std = .1, dt = 5, v = .1
-    # kf.R = np.array([[ 2.98480922, -3.00448956], [-3.00448956,  3.64202692]])
-
-    # r_std = 1.
-    # kf.R = np.array([[164.48873931, -96.56060999], [-96.56060999, 97.72653154]])
+    # rssi noise
+    kf.R = np.array([[21.62548567,  0.99567984], [0.99567984, 21.36388223]])
 
     kf.P = np.zeros((4, 4))
     kf.P[:2, :2] = copy.deepcopy(kf.R)
@@ -215,7 +239,6 @@ def run_rotating_robot():
     print(f"RMSE_est = {rmse_est}, RMSE_meas = {rmse_meas}")
 
     loc.animate_results(title=title, save=False, plot_error_figures=True)
-
 
 
 def run_motion_based_localization():
@@ -293,10 +316,10 @@ def run_motion_based_localization():
 
 def determine_r_matrix():
     u = [[1., 0.]] * 25 + [[1., 2.]] * 25 + [[-2, 1]] * 25 + [[-1, -1]] * 50 + [[0, 2]] * 25
-    count = 400
+    count = 600
     p0 = [0., -2.]
     v0 = [1, 1]
-    dt = .1
+    dt = .5
     is_noisy = True
     r_std = .1
     v_std = 0

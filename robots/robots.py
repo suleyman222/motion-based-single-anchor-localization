@@ -128,11 +128,11 @@ class TwoRobotSystem:
 
         if self.noise:
             path_loss_exp = 2
-            p_0 = -52
+            p_0 = -52  # [dBm]
+            sigma_rssi = 5.8  # [dB]
             p_ij = p_0 - 10 * path_loss_exp * np.log10(r)
-            sigma_rssi = 6  # [dB]
 
-            M = 100
+            M = 1
             noisy_rssi = 0
             for i in range(M):
                 noisy_rssi += p_ij + np.random.normal(0, sigma_rssi)
@@ -148,6 +148,6 @@ class TwoRobotSystem:
             # print(r, std)
             r += np.random.normal(0, self.r_std)
 
-            # r = noisy_distance
+            r = noisy_distance
         self.measured_r.append(r)
         return r
