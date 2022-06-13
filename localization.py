@@ -7,8 +7,9 @@ from matplotlib import pyplot as plt
 from robots.robots import ConstantAccelerationRobot2D, RandomAccelerationRobot2D, ControlledRobot2D, TwoRobotSystem, \
     RotatingRobot2D
 from utils import Util
-from scipy.signal import _savitzky_golay
+from scipy import signal
 from utils.animator import Animator
+import filterpy.kalman
 
 
 class BaseLocalization(ABC):
@@ -33,32 +34,27 @@ class BaseLocalization(ABC):
 
     def calculate_possible_positions(self, r, v):
         prev_rs = self.robot_system.measured_r
-        # if len(self.robot_system.measured_r) > 11:
-        #     dr = (0.03846 * r + 0.03147 * prev_rs[-2] + 0.02448 * prev_rs[-3] + 0.01748 * prev_rs[-4] + 0.01049 *
-        #           prev_rs[-5]
-        #           + 0.0035 * prev_rs[-6] - 0.0035 * prev_rs[-7] - 0.01049 * prev_rs[-8] - 0.01748 * prev_rs[-9] -
-        #           0.02448 * prev_rs[-10] - 0.03147 * prev_rs[-11] - 0.03846 * prev_rs[-12]) / self.dt
-        # elif len(self.robot_system.measured_r) > 2:
-        #     dr = (0.5 * r + 0 * prev_rs[-2] - .5 * prev_rs[-3]) / self.dt
-        #     # dr = (0.2*r + 0.1*prev_rs[-2] - 0*prev_rs[-3] - 0.1*prev_rs[-4] - 0.2*prev_rs[-5]) / self.dt
-        #     # dr = (0.14286*r + 0.08571*prev_rs[-2] + 0.02857*prev_rs[-3] - 0.02857*prev_rs[-4] - 0.08571*prev_rs[-5]
-        #     #       - 0.14286*prev_rs[-6]) / self.dt
-        # else:
-        #     dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+        if len(prev_rs) < 3:
+            dr = signal.savgol_filter(deriv=1, x=prev_rs,
+                                      window_length=len(prev_rs), polyorder=1, delta=self.dt)[-1]
+            r = signal.savgol_filter(deriv=0, x=prev_rs,
+                                     window_length=min(len(prev_rs), 50), polyorder=1, delta=self.dt)[-1]
+        else:
+            dr = signal.savgol_filter(deriv=1, x=prev_rs,
+                                               window_length=min(len(prev_rs), 50), polyorder=2, delta=self.dt)[-1]
+            r = signal.savgol_filter(deriv=0, x=prev_rs,
+                                     window_length=min(len(prev_rs), 30), polyorder=1, delta=self.dt)[-1]
 
-        dr = _savitzky_golay.savgol_filter(deriv=1, x=prev_rs,
-                                      window_length=min(len(prev_rs), 150), polyorder=1, delta=self.dt)[-1]
-            # dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+        # dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
+        self.filtered_r.append(r)
         self.filtered_dr.append(dr)
+
         self.prev_r = r
         s = np.linalg.norm(v)
         alpha = np.arctan2(v[1], v[0])
         theta = np.arccos(Util.clamp(dr / s, -1, 1))
 
-        self.filtered_r = _savitzky_golay.savgol_filter(deriv=0, x=prev_rs, window_length=min(len(prev_rs), 100),
-                                                        polyorder=1, delta=self.dt)
         r = self.filtered_r[-1]
-
         pos1 = [r * np.cos(alpha + theta), r * np.sin(alpha + theta)] + self.robot_system.anchor_robot.pos
         pos2 = [r * np.cos(alpha - theta), r * np.sin(alpha - theta)] + self.robot_system.anchor_robot.pos
         return [pos1, pos2]
@@ -145,7 +141,7 @@ class MotionBasedLocalization(BaseLocalization):
 
             if self.localized:
                 # Compare measurements to moving average of previous positions
-                window_length = 50
+                window_length = 5
                 window = list(range(max(self.idx_loc, i-window_length), i))
                 prev_pos = np.mean(self.estimated_positions[window], axis=0)
                 # prev_pos = self.estimated_positions[i-1]
@@ -154,12 +150,12 @@ class MotionBasedLocalization(BaseLocalization):
 
                 if self.kf:
                     self.kf.predict()
-                    self.kf.update(closest_measurement)
+                    self.kf.update(np.concatenate((closest_measurement, measured_v)))
                     closest_measurement = [self.kf.x[0], self.kf.x[1]]
-                self.estimated_positions[i] = closest_measurement
+                self.estimated_positions[i] = closest_measurement  # self.estimated_positions[i-1] + measured_v * self.dt
             else:
                 similarity = Util.cos_similarity(self.prev_v, measured_v)
-                if similarity < .99 and i > 20:
+                if similarity < .97 and i > 20:
                     self.localized = True
                     prev1 = self.measured_positions[i-1][0]
                     prev2 = self.measured_positions[i-1][1]
@@ -174,18 +170,18 @@ class MotionBasedLocalization(BaseLocalization):
                     self.idx_loc = i
             self.prev_v = measured_v
 
-        plt.plot(_savitzky_golay.savgol_filter(deriv=1, x=self.robot_system.measured_r,
-                                                         window_length=100, polyorder=3, delta=self.dt), label="savgol")
-        plt.plot(self.filtered_dr, label="filtered dr")
-        plt.plot(np.insert(np.diff(self.robot_system.real_r), 0, None), label="real dr")
-        plt.legend()
-        plt.show()
+        # plt.plot(signal.savgol_filter(deriv=1, x=self.robot_system.measured_r,
+        #                                                  window_length=100, polyorder=1, delta=self.dt), label="savgol")
+        # plt.plot(self.filtered_dr, label="filtered dr")
+        # plt.plot(np.insert(np.diff(self.robot_system.real_r), 0, None), label="real dr")
+        # plt.legend()
+        # plt.show()
 
         plt.plot(self.robot_system.real_r, label="real_r")
         plt.plot(self.filtered_r, label="filtered r")
         plt.plot(self.robot_system.measured_r, label="measured_r")
-        plt.plot(_savitzky_golay.savgol_filter(deriv=0, x=self.robot_system.measured_r, window_length=100,
-                                               polyorder=1, delta=self.dt), label="savgol filtered r")
+        # plt.plot(_savitzky_golay.savgol_filter(deriv=0, x=self.filtered_r, window_length=100,
+        #                                        polyorder=1, delta=self.dt), label="savgol filtered r")
         plt.legend()
         plt.show()
 
@@ -194,22 +190,28 @@ class MotionBasedLocalization(BaseLocalization):
 
 
 def run_rotating_robot():
-    p0 = [0., -2.]
+    p0 = [-9, -5]
     v0 = [1, 1]
-    count = 600
+    count = 400
     is_noisy = True
-    r_std = .1
+    r_std = 1.
     v_std = 0
 
-    target_ax_std = .002
-    target_ay_std = .002
+    target_ax_std = .5
+    target_ay_std = .5
     dt = .5
 
     target = RotatingRobot2D(init_pos=p0, init_vel=v0, dt=dt)
 
     system = TwoRobotSystem(None, target, noise=is_noisy, r_std=r_std, v_std=v_std)
 
-    kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
+    # kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
+    kf = filterpy.kalman.KalmanFilter(4, 4)
+    kf.F = np.array([[1.,  0.,  dt, 0.],
+                     [0.,  1.,  0.,  dt],
+                     [0.,  0.,  1.,  0.],
+                     [0.,  0.,  0.,  1.]])
+
     ax_var = target_ax_std ** 2
     ay_var = target_ay_std ** 2
     kf.Q = np.array([[dt ** 4 * ax_var / 4, 0, dt ** 3 * ax_var / 2, 0],
@@ -221,12 +223,18 @@ def run_rotating_robot():
     # kf.R = np.array([[38.43291417,  9.34092651], [9.34092651, 46.58549306]])
 
     # rssi noise
-    kf.R = np.array([[21.62548567,  0.99567984], [0.99567984, 21.36388223]])
+    # kf.R = np.array([[21.62548567,  0.99567984], [0.99567984, 21.36388223]])
+
+    # r_std = 1.
+    kf.R = np.array([[38.64475783, -0.72235203], [-0.72235203, 39.07971159]])
 
     kf.P = np.zeros((4, 4))
     kf.P[:2, :2] = copy.deepcopy(kf.R)
     kf.P[2, 2] = v_std
     kf.P[3, 3] = v_std
+    kf.R = copy.deepcopy(kf.P)
+    kf.H = np.eye(4)
+
     loc = MotionBasedLocalization(system, count, kf)
     loc.run()
 
@@ -261,16 +269,22 @@ def run_motion_based_localization():
     is_noisy = True
     r_std = .1
     v_std = 0
-    target_ax_std = .05
-    target_ay_std = .05
-    target = ControlledRobot2D(u, dt=dt, init_pos=p0, init_vel=u[0])
+    target_ax_std = 1.5
+    target_ay_std = 1.
+    # target = ControlledRobot2D(u, dt=dt, init_pos=p0, init_vel=u[0])
 
-    # target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
+    target = RandomAccelerationRobot2D(p0, v0, dt, ax_noise=target_ax_std, ay_noise=target_ay_std)
     # anchor = RandomAccelerationRobot2D([0., 0.], [-1, 1], dt, ax_noise=1, ay_noise=1.5)
 
     system = TwoRobotSystem(None, target, noise=is_noisy, r_std=r_std, v_std=v_std)
 
-    kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
+    # kf = filterpy.common.kinematic_kf(2, 1, dt, order_by_dim=False)
+    kf = filterpy.kalman.KalmanFilter(4, 4)
+    kf.F = np.array([[1.,  0.,  dt, 0.],
+                     [0.,  1.,  0.,  dt],
+                     [0.,  0.,  1.,  0.],
+                     [0.,  0.,  0.,  1.]])
+
     ax_var = target_ax_std ** 2
     ay_var = target_ay_std ** 2
     kf.Q = np.array([[dt ** 4 * ax_var / 4, 0, dt ** 3 * ax_var / 2, 0],
@@ -295,11 +309,15 @@ def run_motion_based_localization():
 
     # Controlled Robot r=.1, dt=1
     # kf.R = np.array([[48.85914417,  1.39985785], [1.39985785, 12.77227353]])
+    # rssi noise
+    kf.R = np.array([[21.62548567,  0.99567984], [0.99567984, 21.36388223]])
 
     kf.P = np.zeros((4, 4))
     kf.P[:2, :2] = copy.deepcopy(kf.R)
-    kf.P[2, 2] = .01
-    kf.P[3, 3] = .01
+    kf.P[2, 2] = v_std
+    kf.P[3, 3] = v_std
+    kf.R = copy.deepcopy(kf.P)
+    kf.H = np.eye(4)
     loc = MotionBasedLocalization(system, count, kf)
     loc.run()
 
@@ -316,13 +334,13 @@ def run_motion_based_localization():
 
 def determine_r_matrix():
     u = [[1., 0.]] * 25 + [[1., 2.]] * 25 + [[-2, 1]] * 25 + [[-1, -1]] * 50 + [[0, 2]] * 25
-    count = 600
-    p0 = [0., -2.]
+    count = 400
+    p0 = [-9., -5.]
     v0 = [1, 1]
     dt = .5
     is_noisy = True
-    r_std = .1
-    v_std = 0
+    r_std = 1.
+    v_std = 0.1
     target_ax_std = 1.5
     target_ay_std = 1.0
 

@@ -64,20 +64,20 @@ class RotatingRobot2D(BaseRobot2D):
         # TODO: these func params dont do anything
         super().__init__(init_pos, init_vel, dt)
 
-        self.speed = .1  # [m/s]
-        self.yaw_rate = .15
+        self.speed = 1.  # [m/s]
+        self.yaw_rate = .3
         self.vel = [self.speed * np.cos(self.yaw_rate), self.speed * np.sin(self.yaw_rate)]
         self.i = 0
 
     def update(self):
         self.i += 1
-        if self.i < 50:
-            self.vel = [1 * self.speed, 0]
+        if self.i < 21:
+            self.vel = [self.speed, 0]
             self.pos = self.pos + np.dot(self.vel, self.dt)
             return
 
         self.vel = [self.speed * np.cos(self.yaw_rate), self.speed * np.sin(self.yaw_rate)]
-        self.yaw_rate += .01
+        self.yaw_rate += .08
         self.pos = self.pos + np.dot(self.vel, self.dt)
 
 
@@ -100,6 +100,8 @@ class TwoRobotSystem:
         self.real_r = []
         self.measured_r = []
         self.measured_v = []
+
+        self.prev_rssis = [-60]
 
         if anchor_robot.dt != target_robot.dt:
             print("Target and anchor dt are different!")
@@ -127,27 +129,29 @@ class TwoRobotSystem:
         self.real_r.append(r)
 
         if self.noise:
-            path_loss_exp = 2
+            path_loss_exp = 1.8
             p_0 = -52  # [dBm]
             sigma_rssi = 5.8  # [dB]
             p_ij = p_0 - 10 * path_loss_exp * np.log10(r)
 
-            M = 1
-            noisy_rssi = 0
-            for i in range(M):
-                noisy_rssi += p_ij + np.random.normal(0, sigma_rssi)
-            noisy_rssi /= M
+            noisy_rssi = p_ij + np.random.normal(0, sigma_rssi)
 
-            noisy_distance = 10**((-52 - noisy_rssi) / (10 * path_loss_exp))
+            self.prev_rssis.append(noisy_rssi)
+            window_size = 10
+            averaged_rssi = np.mean(self.prev_rssis[len(self.prev_rssis) - window_size:])
+
+            noisy_distance = self.rssi_to_r(noisy_rssi)
+            averaged_distance = self.rssi_to_r(averaged_rssi)
             # print(r, noisy_distance)
 
-            # eta = 2
-            # M = 20
-            # sigma_k = 3
-            # std = np.sqrt(r**2 * sigma_k**2 * (np.log(10) / (10 * eta))**2 / M)
-            # print(r, std)
             r += np.random.normal(0, self.r_std)
 
-            r = noisy_distance
+            # r = averaged_distance
         self.measured_r.append(r)
         return r
+
+    @staticmethod
+    def rssi_to_r(rssi):
+        p_0 = -52
+        path_loss_exp = 1.8
+        return 10**((p_0 - rssi) / (10 * path_loss_exp))
