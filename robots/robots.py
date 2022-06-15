@@ -144,9 +144,9 @@ class TwoRobotSystem:
             averaged_distance = self.rssi_to_r(averaged_rssi)
             # print(r, noisy_distance)
 
-            r += np.random.normal(0, self.r_std)
+            # r += np.random.normal(0, self.r_std)
 
-            # r = averaged_distance
+            r = averaged_distance
         self.measured_r.append(r)
         return r
 

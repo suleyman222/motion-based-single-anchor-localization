@@ -41,9 +41,9 @@ class BaseLocalization(ABC):
                                      window_length=min(len(prev_rs), 50), polyorder=1, delta=self.dt)[-1]
         else:
             dr = signal.savgol_filter(deriv=1, x=prev_rs,
-                                               window_length=min(len(prev_rs), 50), polyorder=2, delta=self.dt)[-1]
+                                               window_length=min(len(prev_rs), 20), polyorder=1, delta=self.dt)[-1]
             r = signal.savgol_filter(deriv=0, x=prev_rs,
-                                     window_length=min(len(prev_rs), 30), polyorder=1, delta=self.dt)[-1]
+                                     window_length=min(len(prev_rs), 20), polyorder=1, delta=self.dt)[-1]
 
         # dr = (prev_rs[-1] - prev_rs[-2]) / self.dt
         self.filtered_r.append(r)
@@ -195,10 +195,10 @@ def run_rotating_robot():
     count = 400
     is_noisy = True
     r_std = 1.
-    v_std = 0
+    v_std = 0.1
 
-    target_ax_std = .5
-    target_ay_std = .5
+    target_ax_std = .1
+    target_ay_std = .1
     dt = .5
 
     target = RotatingRobot2D(init_pos=p0, init_vel=v0, dt=dt)
